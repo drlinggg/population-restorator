@@ -8,8 +8,7 @@ from typing import Any
 
 from loguru import logger
 
-from population_restorator.models import SocialGroupsDistribution
-from population_restorator.models.social_groups import SocialGroupWithProbability
+from population_restorator.models import SocialGroupsDistribution, SocialGroupWithProbability
 
 
 @dataclass
@@ -80,7 +79,7 @@ def _parse_to_tmp(  # pylint: disable=too-many-locals,too-many-branches,too-many
     if not (isinstance(data, dict) and isinstance(data.get("social_groups"), list)):
         logger.error(f"json data read as {type(data)}, 'social_groups' type is {type(data.get('social_groups'))}")
         raise RuntimeError(
-            f"{filename} is not a valid social groups distribution file" ' (needed structure: {"social_groups": ...})'
+            f'{filename} is not a valid social groups distribution file (required structure: {"social_groups": ...})'
         )
 
     social_groups: list[dict[str, Any]] = data["social_groups"]

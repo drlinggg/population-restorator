@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "population-restorator"
-version = "0.1.0"
+version = "0.1.1"
 description = "An utility to model city population based on buildings living area and total population number"
 authors = ["Aleksei Sokol <kanootoko@gmail.com>"]
 license = "MIT"

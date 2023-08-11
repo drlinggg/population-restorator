@@ -13,17 +13,13 @@ def balance_year_additional_social_groups(cur: sqlite3.Cursor, rng: np.random.Ge
         "SELECT"
         "   pd.house_id,"
         "   pd.age,"
-        "   pd.is_male,"
         "   pd.social_group_id,"
-        "   pd.people,"
-        "   population.people * sg.probability * ("
-        "       CASE WHEN pd.is_male = true"
-        "           THEN sgd.men_probability"
-        "           ELSE sgd.women_probability"
-        "       END"
-        "    ) AS probable_people"
+        "   pd.men,"
+        "   pd.women,"
+        "   population.men * sg.probability * sgd.men_probability AS probable_men,"
+        "   population.women * sg.probability * sgd.women_probability AS probable_women"
         " FROM population_divided pd JOIN ("
-        "        SELECT house_id, sum(people) AS people"
+        "        SELECT house_id, sum(men) AS men, sum(women) AS women AS people"
         "        FROM population_divided pd JOIN social_groups sg ON pd.social_group_id = sg.id"
         "        WHERE sg.is_primary = true"
         "        GROUP by house_id"
@@ -31,22 +27,30 @@ def balance_year_additional_social_groups(cur: sqlite3.Cursor, rng: np.random.Ge
         "   JOIN social_groups sg ON pd.social_group_id = sg.id"
         "   JOIN social_groups_distribution sgd ON sgd.social_group_id = sg.id AND pd.age = sgd.age"
         " WHERE sg.is_primary = false AND ("
-        "   pd.people > probable_people * 2"
-        "   OR pd.people + 2 < probable_people / 2"
+        "   pd.men > probable_men * 2"
+        "   OR pd.men + 2 < probable_men / 2"
+        "   OR pd.women > probable_women * 2"
+        "   OR pd.women + 2 < probable_women / 2"
         ")"
-        " ORDER BY 1, 2, 3, 4, 5"
+        " ORDER BY 1, 2, 3"
     )
 
-    for house_id, age, is_male, sg_id, people, probable_people in cur.fetchall():
-        if people > probable_people * 2:
-            needed = probable_people * 2
-        else:
-            needed = probable_people / 2
-        needed = ceil(probable_people * 2) if rng.integers(0, 1, 1, endpoint=True)[0] else floor(probable_people)
+    for house_id, age, sg_id, men, women, probable_men, probable_women in cur.fetchall():
+        if men > probable_men * 2:
+            needed_men = probable_men * 1.5
+        elif men < probable_men / 2:
+            needed_men = probable_men / 1.5
+        needed_men = ceil(needed_men) if rng.integers(0, 1, 1, endpoint=True)[0] else floor(probable_men)
+
+        if women > probable_women * 2:
+            needed_women = probable_women * 1.5
+        elif women < probable_women / 2:
+            needed_women = probable_women / 1.5
+        needed_women = ceil(needed_women) if rng.integers(0, 1, 1, endpoint=True)[0] else floor(probable_women)
 
         cur.execute(
             "UPDATE population_divided"
-            " SET people = ?"
-            " WHERE house_id = ? AND age = ? AND social_group_id = ? AND is_male = ?",
-            (needed, house_id, age, sg_id, is_male),
+            " SET men = ?, women = ?"
+            " WHERE house_id = ? AND age = ? AND social_group_id = ?",
+            (needed_men, needed_women, house_id, age, sg_id),
         )

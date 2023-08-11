@@ -8,9 +8,4 @@ It can be used to balance city houses population in 3 steps:
 from population_restorator import balancer, divider, forecaster, models
 
 
-__author__ = "Aleksei Sokol"
-__maintainer__ = __author__
-__email__ = "kanootoko@gmail.com"
-
-__licence__ = "MIT"
-__version__ = "0.1.0"
+__version__ = "0.1.1"

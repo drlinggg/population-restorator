@@ -12,9 +12,9 @@ def open_database(sqlite_path: str) -> sqlite3.Connection:
     cur = database.cursor()
 
     try:
-        cur.execute("SELECT id, name, is_primary FROM social_groups")
+        cur.execute("SELECT id, name, is_primary FROM social_groups LIMIT 1")
         cur.fetchone()
-        cur.execute("SELECT house_id, is_male, age, social_group_id, people FROM population_divided")
+        cur.execute("SELECT house_id, age, social_group_id, men, women FROM population_divided LIMIT 1")
         cur.fetchone()
     finally:
         cur.close()

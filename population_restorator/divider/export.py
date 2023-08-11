@@ -63,12 +63,16 @@ def save_houses_distribution_to_sqlite(  # pylint: disable=too-many-locals,too-m
         cur.execute(
             "CREATE TABLE IF NOT EXISTS population_divided ("
             "   house_id INTEGER REFERENCES houses(id) NOT NULL,"
-            "   is_male boolean NOT NULL,"
             "   age INTEGER NOT NULL,"
             "   social_group_id INTEGER REFERENCES social_groups(id) NOT NULL,"
-            "   people INTEGER NOT NULL,"
-            "   PRIMARY KEY (house_id, is_male, age, social_group_id)"
+            "   men INTEGER NOT NULL,"
+            "   women INTEGER NOT NULL,"
+            "   PRIMARY KEY (house_id, age, social_group_id)"
             ")"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS population_divided_house_age_social_group"
+            " ON population_divided (house_id, age, social_group_id)"
         )
 
         for house_id, living_area in houses_capacity.items():
@@ -99,14 +103,11 @@ def save_houses_distribution_to_sqlite(  # pylint: disable=too-many-locals,too-m
                     )
             social_groups_ids[social_group.name] = idx[0]
 
-        def insert_data(house_id: int, is_male: bool, age: int, social_group_id: int, people: int):
-            cur.execute(
-                "INSERT INTO population_divided (house_id, is_male, age, social_group_id, people)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (house_id, is_male, age, social_group_id, people),
-            )
-
-        iterable = tqdm(distribution.items(), total=len(distribution)) if verbose else iter(distribution.items())
+        iterable = (
+            tqdm(distribution.items(), total=len(distribution), desc="Saving houses")
+            if verbose
+            else iter(distribution.items())
+        )
         for house_id, distribution_array in iterable:
             for social_group_name, people_division in func(distribution_array).items():
                 social_group_id = social_groups_ids.get(social_group_name)
@@ -114,10 +115,13 @@ def save_houses_distribution_to_sqlite(  # pylint: disable=too-many-locals,too-m
                     raise ValueError(
                         f"Could not insert people division because social group '{social_group_name}' is not present"
                     )
-                for age, people in enumerate(people_division.men):
-                    insert_data(house_id, True, age, social_group_id, people)
-                for age, people in enumerate(people_division.women):
-                    insert_data(house_id, False, age, social_group_id, people)
+                for age, (men, women) in enumerate(zip(people_division.men, people_division.women)):
+                    # insert_data(house_id, True, age, social_group_id, people)
+                    cur.execute(
+                        "INSERT INTO population_divided (house_id, age, social_group_id, men, women)"
+                        " VALUES (?, ?, ?, ?, ?)",
+                        (house_id, age, social_group_id, men, women),
+                    )
 
         database.commit()
     finally:

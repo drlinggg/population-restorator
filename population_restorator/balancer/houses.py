@@ -36,7 +36,7 @@ def balance_houses(territory: Territory, rng: np.random.Generator | None = None)
         return
 
     logger.debug(
-        "Performing buildings population balancing ({:3} houses, total living area = {:9.1f}"
+        "Performing buildings population balancing ({:4} houses, total living area = {:9.1f}"
         " for population of {:6}) for territory '{}'",
         territory.houses.shape[0],
         living_area,

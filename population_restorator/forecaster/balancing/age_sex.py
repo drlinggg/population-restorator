@@ -10,13 +10,12 @@ def _increase_population(
 ) -> None:
     """Add people of the given age and sex to the houses."""
     cur.execute(
-        "SELECT h.id, sum(p.people) / h.capacity as load FROM population_divided p"
+        f"SELECT h.id, sum(p.{'men' if is_male else 'women'}) / h.capacity as load FROM population_divided p"
         "   JOIN houses h ON p.house_id = h.id"
         "   JOIN social_groups sg ON p.social_group_id = sg.id"
-        " WHERE sg.is_primary = true AND p.is_male = ?"
+        " WHERE sg.is_primary = true"
         " GROUP by h.id, h.capacity"
         " HAVING load > 0",
-        (is_male,),
     )
     # pylint: disable=unnecessary-direct-lambda-call
     houses_ids, houses_probs = (lambda loads: (list(loads.keys()), np.array(list(loads.values()))))(dict(cur))
@@ -42,15 +41,14 @@ def _increase_population(
         house_id = houses_ids[idx // len(sgs_ids)]
         sg_id = sgs_ids[idx % len(sgs_ids)]
         cur.execute(
-            "UPDATE population_divided SET people = people + ?"
-            " WHERE house_id = ? AND social_group_id = ? AND age = ? and is_male = ?",
-            (int(change), house_id, sg_id, age, is_male),
+            "UPDATE population_divided SET {sex} = {sex} + ?"
+            " WHERE house_id = ? AND social_group_id = ? AND age = ?".format(sex=("men" if is_male else "women")),
+            (int(change), house_id, sg_id, age),
         )
         if cur.rowcount == 0:
             cur.execute(
-                "INSERT INTO population_divided (house_id, age, social_group_id, is_male, people)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (house_id, age, sg_id, is_male, int(change)),
+                "INSERT INTO population_divided (house_id, age, social_group_id, men, women) VALUES (?, ?, ?, ?, ?)",
+                (house_id, age, sg_id, (int(change) if is_male else 0), (0 if is_male else int(change))),
             )
 
 
@@ -59,12 +57,12 @@ def _decrease_population(
 ) -> None:
     """Remove people of the given age and sex from houses."""
     cur.execute(
-        "SELECT house_id, sg.id, sum(p.people * (1 - sg.probability)) as load FROM population_divided p"
+        f"SELECT house_id, sg.id, sum(p.{'men' if is_male else 'woimen'} * (1 - sg.probability)) as load"
+        " FROM population_divided p"
         "   JOIN social_groups sg ON p.social_group_id = sg.id"
-        " WHERE p.is_male = ? and sg.is_primary = true"
+        " WHERE sg.is_primary = true"
         " GROUP BY house_id, sg.id"
         " ORDER BY house_id",
-        (is_male,),
     )
     houses_sgs_ids = []
     houses_sgs_probs = []
@@ -82,9 +80,9 @@ def _decrease_population(
     for h_s_id, change in zip(change_values[0], change_values[1]):
         house_id, sg_id = houses_sgs_ids[h_s_id]
         cur.execute(
-            "UPDATE population_divided SET people = people - ?"
-            " WHERE house_id = ? AND social_group_id = ? AND age = ? and is_male = ?",
-            (int(change), house_id, sg_id, age, is_male),
+            "UPDATE population_divided SET {sex} = {sex} - ?"
+            " WHERE house_id = ? AND social_group_id = ? AND age = ?".format(sex=("men" if is_male else "women")),
+            (int(change), house_id, sg_id, age),
         )
 
 
@@ -95,10 +93,11 @@ def balance_year_age_sex(
     MAX_TRIES = 5  # pylint: disable=invalid-name
     for _ in range(MAX_TRIES):
         cur.execute(
-            "SELECT sum(people) FROM population_divided p"
+            f"SELECT sum({'men' if is_male else 'women'})"
+            " FROM population_divided p"
             "   JOIN social_groups sg ON p.social_group_id = sg.id"
-            " WHERE p.age = ? AND p.is_male = ? AND sg.is_primary = true",
-            (age, is_male),
+            " WHERE p.age = ? AND sg.is_primary = true",
+            (age,),
         )
         people_in_db: int = cur.fetchone()[0] or 0
         if people_in_db == poeople_needed:

@@ -43,17 +43,15 @@ def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
 
         current_men, current_women = np.array([0] * (max_age + 1)), np.array([0] * (max_age + 1))
         cur.execute(
-            "SELECT age, is_male, sum(people)"
+            "SELECT age, sum(men) AS men, sum(women) AS women"
             " FROM population_divided p"
             "   JOIN social_groups sg ON p.social_group_id = sg.id"
             " WHERE sg.is_primary = true"
-            " GROUP BY age, is_male"
+            " GROUP BY age"
         )
-        for age, is_male, people in cur:
-            if is_male:
-                current_men[age] = people
-            else:
-                current_women[age] = people
+        for age, men, women in cur:
+            current_men[age] = men
+            current_women[age] = women
 
     finally:
         cur.close()
