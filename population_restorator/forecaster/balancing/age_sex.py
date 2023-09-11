@@ -1,34 +1,69 @@
 """Age-sex balancing methods are defined here."""
-import sqlite3
+from typing import Callable
 
 import numpy as np
 from loguru import logger
+from sqlalchemy import Connection, func, insert, select, text, true, update
+
+from population_restorator.db.entities import (
+    t_houses_tmp,
+    t_population_divided,
+    t_social_groups_distribution,
+    t_social_groups_probabilities,
+)
 
 
-def _increase_population(
-    cur: sqlite3.Cursor, age: int, increase_needed: int, is_male: bool, rng: np.random.Generator
+func: Callable
+
+
+def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
+    conn: Connection, age: int, increase_needed: int, is_male: bool, year: int, rng: np.random.Generator
 ) -> None:
     """Add people of the given age and sex to the houses."""
-    cur.execute(
-        f"SELECT h.id, sum(p.{'men' if is_male else 'women'}) / h.capacity as load FROM population_divided p"
-        "   JOIN houses h ON p.house_id = h.id"
-        "   JOIN social_groups sg ON p.social_group_id = sg.id"
-        " WHERE sg.is_primary = true"
-        " GROUP by h.id, h.capacity"
-        " HAVING load > 0",
+    _load = (
+        func.coalesce(func.sum(t_population_divided.c.men if is_male else t_population_divided.c.women), text("0"))
+        / t_houses_tmp.c.capacity
+    ).label("load")
+    statement = (
+        select(t_houses_tmp.c.id, _load)
+        .select_from(t_houses_tmp)
+        .join(t_population_divided, t_population_divided.c.house_id == t_houses_tmp.c.id, isouter=True)
+        .join(
+            t_social_groups_probabilities, t_population_divided.c.social_group_id == t_social_groups_probabilities.c.id
+        )
+        .where(t_population_divided.c.year == year, t_social_groups_probabilities.c.is_primary == true())
+        .group_by(t_houses_tmp.c.id, t_houses_tmp.c.capacity)
+        .having(_load > 0)
     )
     # pylint: disable=unnecessary-direct-lambda-call
-    houses_ids, houses_probs = (lambda loads: (list(loads.keys()), np.array(list(loads.values()))))(dict(cur))
+    houses_ids, houses_probs = (lambda loads: (list(loads.keys()), np.array(list(loads.values()))))(
+        dict(conn.execute(statement).all())
+    )
 
-    cur.execute(
-        f"SELECT sg.id, sg.probability * sgd.{'men' if is_male else 'women'}_probability"
-        " FROM social_groups sg"
-        "   JOIN social_groups_distribution sgd ON sg.id = sgd.social_group_id AND sgd.age = ?"
-        f" WHERE sg.is_primary = true AND sg.probability * sgd.{'men' if is_male else 'women'}_probability > 0",
-        (age,),
+    _prob = (
+        t_social_groups_probabilities.c.probability
+        * (
+            t_social_groups_distribution.c.men_probability
+            if is_male
+            else t_social_groups_distribution.c.women_probability
+        )
+    ).label("probability")
+    statement = (
+        select(
+            t_social_groups_probabilities.c.id,
+            _prob,
+        )
+        .select_from(t_social_groups_probabilities)
+        .join(
+            t_social_groups_distribution,
+            t_social_groups_distribution.c.social_group_id == t_social_groups_probabilities.c.id,
+        )
+        .where(t_social_groups_probabilities.c.is_primary == true(), _prob > 0)
     )
     # pylint: disable=unnecessary-direct-lambda-call
-    sgs_ids, sgs_probs = (lambda probs: (list(probs.keys()), np.array(list(probs.values()))))(dict(cur))
+    sgs_ids, sgs_probs = (lambda probs: (list(probs.keys()), np.array(list(probs.values()))))(
+        dict(conn.execute(statement).all())
+    )
 
     total_probs = np.array((np.mat(houses_probs).T * sgs_probs).flat)
     total_probs /= total_probs.sum()
@@ -40,33 +75,59 @@ def _increase_population(
     for idx, change in zip(change_values[0], change_values[1]):
         house_id = houses_ids[idx // len(sgs_ids)]
         sg_id = sgs_ids[idx % len(sgs_ids)]
-        cur.execute(
-            "UPDATE population_divided SET {sex} = {sex} + ?"
-            " WHERE house_id = ? AND social_group_id = ? AND age = ?".format(sex=("men" if is_male else "women")),
-            (int(change), house_id, sg_id, age),
-        )
-        if cur.rowcount == 0:
-            cur.execute(
-                "INSERT INTO population_divided (house_id, age, social_group_id, men, women) VALUES (?, ?, ?, ?, ?)",
-                (house_id, age, sg_id, (int(change) if is_male else 0), (0 if is_male else int(change))),
+        updated = conn.execute(
+            update(t_population_divided)
+            .values(
+                **{
+                    ("men" if is_male else "women"): (
+                        t_population_divided.c.men if is_male else t_population_divided.c.women
+                    )
+                    + int(change)
+                }
+            )
+            .where(
+                t_population_divided.c.year == year,
+                t_population_divided.c.house_id == house_id,
+                t_population_divided.c.social_group_id == sg_id,
+                t_population_divided.c.age == age,
+            )
+        ).rowcount
+        if updated == 0:
+            conn.execute(
+                insert(t_population_divided).values(
+                    year=year,
+                    house_id=house_id,
+                    social_group_id=sg_id,
+                    age=age,
+                    **{("men" if is_male else "women"): int(change), ("women" if is_male else "men"): 0},
+                )
             )
 
 
-def _decrease_population(
-    cur: sqlite3.Cursor, age: int, decrease_needed: int, is_male: bool, rng: np.random.Generator
+def _decrease_population(  # pylint: disable=too-many-arguments
+    conn: Connection, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
 ) -> None:
     """Remove people of the given age and sex from houses."""
-    cur.execute(
-        f"SELECT house_id, sg.id, sum(p.{'men' if is_male else 'woimen'} * (1 - sg.probability)) as load"
-        " FROM population_divided p"
-        "   JOIN social_groups sg ON p.social_group_id = sg.id"
-        " WHERE sg.is_primary = true"
-        " GROUP BY house_id, sg.id"
-        " ORDER BY house_id",
+    statement = (
+        select(
+            t_population_divided.c.house_id,
+            t_social_groups_probabilities.c.id,
+            func.sum(
+                (t_population_divided.c.men if is_male else t_population_divided.c.women)
+                * (1 - t_social_groups_probabilities.c.probability)
+            ),
+        )
+        .select_from(t_population_divided)
+        .join(
+            t_social_groups_probabilities, t_population_divided.c.social_group_id == t_social_groups_probabilities.c.id
+        )
+        .where(t_population_divided.c.year == year, t_social_groups_probabilities.c.is_primary == true())
+        .group_by(t_population_divided.c.house_id, t_social_groups_probabilities.c.id)
+        .order_by(t_population_divided.c.house_id)
     )
     houses_sgs_ids = []
     houses_sgs_probs = []
-    for house_id, sg_id, load in cur:
+    for house_id, sg_id, load in conn.execute(statement):
         houses_sgs_ids.append((house_id, sg_id))
         houses_sgs_probs.append(load)
 
@@ -79,41 +140,89 @@ def _decrease_population(
     )
     for h_s_id, change in zip(change_values[0], change_values[1]):
         house_id, sg_id = houses_sgs_ids[h_s_id]
-        cur.execute(
-            "UPDATE population_divided SET {sex} = {sex} - ?"
-            " WHERE house_id = ? AND social_group_id = ? AND age = ?".format(sex=("men" if is_male else "women")),
-            (int(change), house_id, sg_id, age),
+        conn.execute(
+            update(t_population_divided)
+            .values(
+                **{
+                    ("men" if is_male else "women"): (
+                        t_population_divided.c.men if is_male else t_population_divided.c.women
+                    )
+                    - int(change)
+                }
+            )
+            .where(
+                t_population_divided.c.year == year,
+                t_population_divided.c.house_id == house_id,
+                t_population_divided.c.social_group_id == sg_id,
+                t_population_divided.c.age == age,
+            )
         )
+    conn.execute(
+        update(t_population_divided)
+        .values(**{("men" if is_male else "women"): 0})
+        .where((t_population_divided.c.men if is_male else t_population_divided.c.women) < 0)
+    )
 
 
-def balance_year_age_sex(
-    cur: sqlite3.Cursor, age: int, poeople_needed: int, is_male: bool, rng: np.random.Generator
+def balance_year_age(  # pylint: disable=too-many-arguments
+    conn: Connection,
+    age: int,
+    men_needed: int,
+    women_needed: int,
+    year: int,
+    houses_ids: list[int] | None,
+    rng: np.random.Generator,
+    max_tries_per_year: int = 20,
 ) -> None:
-    """Increase or decrease population of houses to get needed summary number of people of the given age and sex."""
-    MAX_TRIES = 5  # pylint: disable=invalid-name
-    for _ in range(MAX_TRIES):
-        cur.execute(
-            f"SELECT sum({'men' if is_male else 'women'})"
-            " FROM population_divided p"
-            "   JOIN social_groups sg ON p.social_group_id = sg.id"
-            " WHERE p.age = ? AND sg.is_primary = true",
-            (age,),
+    """Increase or decrease population of houses to get needed summary number of people of the given age and sex.
+
+    Args:
+        conn (sqlalchemy.Connection): database connection
+        age (int): age of people to be balanced
+        men_needed (int): number of men needed exactly by statistics
+        women_needed (int): number of women needed exactly by statistics
+        year (int): year of balancing
+        houses_ids (list[int] | None): identifier of houses to use
+        rng (numpy.random.Generator): generator to keep the same resutls between launches
+        max_tries_per_year (int, optional): number of attempts to balance accurately (used when population decrease
+        is needed and wrong houses were used too many times). Defaults to 15.
+    """
+    for _ in range(max_tries_per_year):
+        statement = (
+            select(func.sum(t_population_divided.c.men), func.sum(t_population_divided.c.women))
+            .select_from(t_population_divided)
+            .join(
+                t_social_groups_probabilities,
+                t_population_divided.c.social_group_id == t_social_groups_probabilities.c.id,
+            )
+            .where(
+                t_population_divided.c.year == year,
+                t_population_divided.c.age == age,
+                (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
+                t_social_groups_probabilities.c.is_primary == true(),
+            )
         )
-        people_in_db: int = cur.fetchone()[0] or 0
-        if people_in_db == poeople_needed:
+        men_in_db, women_in_db = map(lambda x: x or 0, conn.execute(statement).one())
+        if men_in_db == men_needed and women_in_db == women_needed:
             return
 
-        logger.trace("{} of age {}: {} -> {}", ("men" if is_male else "women"), age, people_in_db, poeople_needed)
-        if people_in_db < poeople_needed:
-            _increase_population(cur, age, poeople_needed - people_in_db, is_male, rng)
-        else:
-            _decrease_population(cur, age, people_in_db - poeople_needed, is_male, rng)
+        logger.trace("Age {}: men {} -> {}, women {} -> {}", age, men_in_db, men_needed, women_in_db, women_needed)
+        if men_in_db < men_needed:
+            _increase_population(conn, age, men_needed - men_in_db, True, year, rng)
+        elif men_in_db > men_needed:
+            _decrease_population(conn, age, men_in_db - men_needed, True, year, rng)
+
+        if women_in_db < women_needed:
+            _increase_population(conn, age, women_needed - women_in_db, False, year, rng)
+        elif women_in_db > women_needed:
+            _decrease_population(conn, age, women_in_db - women_needed, False, year, rng)
 
     logger.warning(
-        "Could not update {} number of age {}: {} -> {} by {} tries",
-        ("men" if is_male else "women"),
+        "Could not balance people of age {} (men {} -> {}, women {} -> {}) by {} tries",
         age,
-        people_in_db,
-        poeople_needed,
-        MAX_TRIES,
+        men_in_db,
+        men_needed,
+        women_in_db,
+        women_needed,
+        max_tries_per_year,
     )

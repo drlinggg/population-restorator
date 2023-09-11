@@ -106,7 +106,7 @@ Following additional social groups can be used: "Dog owners", "Bike riders", "Ch
 #### Launch example:
 
 ```bash
-population-restore divide -h sample_data/divider/houses.csv -s sample_data/divider/social_groups.json -oi output/houses_with_ids.csv -o output/houses_divided.sqlite
+population-restore divide -h sample_data/divider/houses.csv -s sample_data/divider/social_groups.json -oi output/houses_with_ids.csv -o output/houses_divided.sqlite --year 2020
 ```
 
 This is a small example to get the point. There are 4 social groups: 2 pimary and 2 additional, people age is from 0 to 3 (which mean that they are born with

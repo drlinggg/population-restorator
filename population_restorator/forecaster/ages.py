@@ -1,12 +1,17 @@
 """Generic ages forecasting algorithm is defined here."""
-import sqlite3
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 import pandas as pd
 from loguru import logger
+from sqlalchemy import Engine, func, select, true
 
+from population_restorator.db.entities import t_population_divided, t_social_groups_probabilities
 from population_restorator.models import SurvivabilityCoefficients
+
+
+func: Callable
 
 
 @dataclass
@@ -18,7 +23,7 @@ class ForecastedAges:
 
 
 def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
-    database: sqlite3.Connection,
+    database: Engine,
     year_begin: int,
     year_end: int,
     boys_to_girls: float,
@@ -26,14 +31,15 @@ def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
     fertility_coefficient: float,
     fertility_begin: int,
     fertility_end: int,
+    houses_ids: list[int] | None = None,
 ) -> ForecastedAges:
-    """Get modeled number of people for the given numeber of years based on set statistical parameters."""
-    cur = database.cursor()
+    """Get modeled number of people for the given numeber of years based on set statistical parameters.
+
+    If `houses_ids` is given, only houses with given ids will be used."""
 
     logger.debug("Obtaining number of people from the database")
-    try:
-        cur.execute("SELECT max(age) FROM population_divided")
-        max_age: int = cur.fetchone()[0]
+    with database.connect() as conn:
+        max_age: int = conn.execute(select(func.max(t_population_divided.c.age))).scalar_one()
 
         if max_age != len(survivability_coefficients.men):
             raise ValueError(
@@ -42,19 +48,24 @@ def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
             )
 
         current_men, current_women = np.array([0] * (max_age + 1)), np.array([0] * (max_age + 1))
-        cur.execute(
-            "SELECT age, sum(men) AS men, sum(women) AS women"
-            " FROM population_divided p"
-            "   JOIN social_groups sg ON p.social_group_id = sg.id"
-            " WHERE sg.is_primary = true"
-            " GROUP BY age"
+        cur = conn.execute(
+            select(
+                t_population_divided.c.age, func.sum(t_population_divided.c.men), func.sum(t_population_divided.c.women)
+            )
+            .select_from(t_population_divided)
+            .join(
+                t_social_groups_probabilities,
+                t_population_divided.c.social_group_id == t_social_groups_probabilities.c.id,
+            )
+            .where(
+                t_social_groups_probabilities.c.is_primary == true(),
+                (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
+            )
+            .group_by(t_population_divided.c.age)
         )
         for age, men, women in cur:
             current_men[age] = men
             current_women[age] = women
-
-    finally:
-        cur.close()
 
     logger.debug("Forecasting people divided by sex and age")
 

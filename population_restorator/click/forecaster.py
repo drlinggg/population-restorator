@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import datetime
-import sqlite3
 import sys
 import traceback
 from pathlib import Path
@@ -11,8 +10,9 @@ import click
 import pandas as pd
 from loguru import logger
 from rich.console import Console
+from sqlalchemy import create_engine
 
-from population_restorator.forecaster import forecast_ages, forecast_people, open_database
+from population_restorator.forecaster import forecast_ages, forecast_people
 from population_restorator.models.parse import read_coefficients
 
 from .main_group import main
@@ -38,7 +38,7 @@ from .main_group import main
     "--year_begin",
     "-b",
     type=int,
-    help="Year to begin forecast ('current year')",
+    help="Year of the given data sample ('current year' for the calculations)",
     default=None,
     show_default="<current year>",
 )
@@ -125,24 +125,23 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
             console.print(f"[red]Could not create an output directory '{output_dir}'[/red]: {exc!r}")
 
     try:
-        database = open_database(str(houses_db))
+        database = create_engine(f"sqlite:///{str(houses_db)}")
     except Exception as exc:  # pylint: disable=broad-except
         logger.critical("Exception on reading input data: {!r}", exc)
         if verbose:
             traceback.print_exc()
         sys.exit(1)
 
-    with database:
-        forecasted_ages = forecast_ages(
-            database,
-            year_begin,
-            year_begin + years,
-            boys_to_girls,
-            coeffs,
-            fertility_coefficient,
-            fertility_begin,
-            fertility_end,
-        )
+    forecasted_ages = forecast_ages(
+        database,
+        year_begin,
+        year_begin + years,
+        boys_to_girls,
+        coeffs,
+        fertility_coefficient,
+        fertility_begin,
+        fertility_end,
+    )
 
     if verbose:
         console.print(
@@ -164,6 +163,6 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
         )
         sys.exit(1)
 
-    databases = (sqlite3.connect(db_name) for db_name in db_names)
+    databases = (f"sqlite:///{db_name}" for db_name in db_names)
 
-    forecast_people(database, forecasted_ages, databases)
+    forecast_people(database, forecasted_ages, databases, year_begin)

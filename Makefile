@@ -22,7 +22,7 @@ clean:
 build:
 	poetry build
 
-udpate-pypi: clean build
+update-pypi: clean build
 	$(info Do not forget to execute `poetry config pypi-token.pypi <my-token>` and bump version)
 	poetry publish
 

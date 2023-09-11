@@ -9,13 +9,11 @@ from loguru import logger
 from population_restorator.models import SocialGroupsDistribution
 
 
-MAX_ADDITIONAL_SGS_TRIES = 30
-
-
 def divide_houses(  # pylint: disable=too-many-locals
     houses_population: list[int],
     social_groups: SocialGroupsDistribution,
     rng: np.random.Generator | None = None,
+    max_additional_sgs_tries: int = 30,
 ) -> list[np.ndarray]:
     """Divide houses population by sex, age and social groups.
 
@@ -23,7 +21,9 @@ def divide_houses(  # pylint: disable=too-many-locals
         houses (list[int]): houses, must have population located in `population` column.
         social_groups (SocialGroupsDistribution): People distribution by social_group, sex and age for non-crossings
         and additonal social groups.
-        rng (numpy.random.Generator, optional): optional random generator.
+        rng (numpy.random.Generator, optional): optional random generator. Defaults to a new-created generator
+        max_additional_sgs_tries (int, optional): maximum number of fails in a row in process of choosing an additional
+        social group for a person before the process stops. Defaults to 30.
 
     Returns:
         list[ndarray]: people distribution for houses in format of numpy array with shape [<social_groups>, 2, <ages>].
@@ -63,7 +63,7 @@ def divide_houses(  # pylint: disable=too-many-locals
         sgs_a_range = list(range(sgs.shape[0], sgs.shape[0] + sgs_a.shape[2]))
         additional_population = population * social_groups.get_additional_probability()
         for setteled_additionals in range(int(additional_population)):
-            for _tries in range(MAX_ADDITIONAL_SGS_TRIES):
+            for _tries in range(max_additional_sgs_tries):
                 person_idx = rng.choice(house_pop)
                 sg_idx = person_idx // (sgs.shape[1] * sgs.shape[2])
                 sex_idx = (person_idx - sg_idx * sgs.shape[1] * sgs.shape[2]) // sgs.shape[2]

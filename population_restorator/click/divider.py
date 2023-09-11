@@ -1,5 +1,6 @@
 """Balance command-line utility configuration is defined here."""
 from __future__ import annotations
+import datetime
 
 import sys
 import traceback
@@ -7,8 +8,9 @@ import traceback
 import click
 import pandas as pd
 from loguru import logger
+from sqlalchemy import create_engine
 
-from population_restorator.divider import divide_houses, save_houses_distribution_to_sqlite
+from population_restorator.divider import divide_houses, save_houses_distribution_to_db
 from population_restorator.models.parse.social_groups import parse_distribution
 from population_restorator.utils import read_file
 from population_restorator.utils.data_saver import to_file
@@ -50,6 +52,14 @@ from .main_group import main
     show_default="<input_houses>_with_ids.csv",
 )
 @click.option(
+    "--year",
+    "-y",
+    type=int,
+    help="Year to save database as",
+    default=None,
+    show_default="<current year>",
+)
+@click.option(
     "--verbose", "-v", is_flag=True, help="Increase logger verbosity to DEBUG and print some additional stataments"
 )
 def divide(  # pylint: disable=too-many-arguments,too-many-locals
@@ -57,6 +67,7 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
     social_groups: str,
     output: str,
     output_ids: str | None,
+    year: int | None,
     verbose: bool,
 ) -> None:
     """Divide dwellings people by sex, age and social group
@@ -76,6 +87,10 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
     if not verbose:
         logger.remove()
         logger.add(sys.stderr, level="INFO")
+
+    if year is None:
+        year = datetime.datetime.now().year
+        logger.opt(colors=True).info("Using <cyan>{}</cyan> as a year to save a forecast", year)
 
     try:
         houses_df = read_file(houses)
@@ -104,10 +119,12 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
     )
 
     logger.info("Saving results to {}", output)
-    save_houses_distribution_to_sqlite(
-        output,
+    engine = create_engine(f"sqlite:///{output}")
+    save_houses_distribution_to_db(
+        engine.connect(),
         distribution_series,
         houses_df["living_area"] if "living_area" in houses_df.columns else houses_df["population"],
         distribution,
+        year,
         verbose,
     )

@@ -2,128 +2,135 @@
 from __future__ import annotations
 
 import itertools
-import sqlite3
 
 import pandas as pd
 from loguru import logger
+from sqlalchemy import Connection, delete, insert, select, update
 from tqdm import tqdm
 
+from population_restorator.db.entities import (
+    t_houses_tmp,
+    t_population_divided,
+    t_social_groups_distribution,
+    t_social_groups_probabilities,
+)
+from population_restorator.db.ops import prepare_db
+from population_restorator.db.ops.preparation import update_sgs_distribution
 from population_restorator.models.social_groups import SocialGroupsDistribution
 
 
-def save_houses_distribution_to_sqlite(  # pylint: disable=too-many-locals,too-many-branches
-    sqlite_db_or_path: str | sqlite3.Connection,
+def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
+    conn: Connection,
     distribution: pd.Series,
     houses_capacity: pd.Series,
     distribution_probabilities: SocialGroupsDistribution,
+    year: int,
     verbose: bool = False,
 ) -> None:
-    """Save the given people division to the SQLite database
+    """Save the given people division to the database.
 
     Args:
-        sqlite_path (str): path to create/open SQLite database
-        distribution (pd.Series): Series with integer identifiers as an index and numpy.ndarrays as values
-        func (Callable[[np.ndarray], dict[str, PeopleDistribution]]): _description_
+        conn (sqlalchemy.Connection): connection to the database to save results to.
+        distribution (pandas.Series): people distribution as pandas Series with numpy.ndarray as values
+        houses_capacity (pandas.Series): capacity value for each house
+        distribution_probabilities (SocialGroupsDistribution): probability distribution by social_groups-sex-age
+        year (int): year to save distribution for
+        verbose (bool, optional): print progress bar. Defaults to False.
     """
     func = distribution_probabilities.get_resulting_function()
-    if isinstance(sqlite_db_or_path, str):
-        database = sqlite3.connect(sqlite_db_or_path)
-    else:
-        database = sqlite_db_or_path
 
     if distribution.shape[0] == 0:
         logger.warning("Requested to save an empty people division. Exiting without writing database.")
         return
 
-    try:
-        cur: sqlite3.Cursor = database.cursor()
-
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS social_groups ("
-            "   id INTEGER PRIMARY KEY,"
-            "   name varchar(150) UNIQUE NOT NULL,"
-            "   probability REAL NOT NULL,"
-            "   is_primary boolean NOT NULL"
-            ")"
-        )
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS houses ("
-            "   id INTEGER PRIMARY KEY NOT NULL,"
-            "   capacity float NOT NULL"  # living_area, max_population, etc.
-            ")"
-        )
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS social_groups_distribution ("
-            "   social_group_id INTEGER REFERENCES social_groups(id) NOT NULL,"
-            "   age INTEGER NOT NULL,"
-            "   men_probability REAL NOT NULL,"
-            "   women_probability REAL NOT NULL"
-            ")"
-        )
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS population_divided ("
-            "   house_id INTEGER REFERENCES houses(id) NOT NULL,"
-            "   age INTEGER NOT NULL,"
-            "   social_group_id INTEGER REFERENCES social_groups(id) NOT NULL,"
-            "   men INTEGER NOT NULL,"
-            "   women INTEGER NOT NULL,"
-            "   PRIMARY KEY (house_id, age, social_group_id)"
-            ")"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS population_divided_house_age_social_group"
-            " ON population_divided (house_id, age, social_group_id)"
-        )
+    with conn:
+        prepare_db(conn)
 
         for house_id, living_area in houses_capacity.items():
-            cur.execute(
-                "INSERT INTO houses (id, capacity) VALUES (?, ?) ON CONFLICT DO NOTHING", (house_id, living_area)
-            )
+            updated = conn.execute(
+                update(t_houses_tmp).values(capacity=living_area).where(t_houses_tmp.c.id == house_id)
+            ).rowcount
+
+            if updated == 0:
+                conn.execute(insert(t_houses_tmp).values(id=house_id, capacity=living_area))
 
         social_groups_ids = {}
         for is_primary, social_group in itertools.chain(
             zip(itertools.repeat(True), distribution_probabilities.primary),
             zip(itertools.repeat(False), distribution_probabilities.additional),
         ):
-            cur.execute("SELECT id FROM social_groups WHERE name = ?", (social_group.name,))
-            idx = cur.fetchone()
-            if idx is None:
-                cur.execute(
-                    "INSERT INTO social_groups (name, probability, is_primary) VALUES (?, ?, ?) RETURNING id",
-                    (social_group.name, float(social_group.probability), is_primary),
+            idx = conn.execute(
+                select(t_social_groups_probabilities.c.id).where(
+                    t_social_groups_probabilities.c.name == social_group.name
                 )
-                idx = cur.fetchone()
+            ).scalar_one_or_none()
+            if idx is None:
+                idx = conn.execute(
+                    insert(t_social_groups_probabilities)
+                    .values(name=social_group.name, probability=float(social_group.probability), is_primary=is_primary)
+                    .returning(t_social_groups_probabilities.c.id),
+                ).scalar_one()
                 for age, men, women in zip(
                     itertools.count(), social_group.distribution.men, social_group.distribution.women
                 ):
-                    cur.execute(
-                        "INSERT INTO social_groups_distribution"
-                        " (social_group_id, age, men_probability, women_probability) VALUES (?, ?, ?, ?)",
-                        (idx[0], age, float(men), float(women)),
+                    conn.execute(
+                        insert(t_social_groups_distribution).values(
+                            social_group_id=idx, age=age, men_probability=float(men), women_probability=float(women)
+                        )
                     )
-            social_groups_ids[social_group.name] = idx[0]
+            social_groups_ids[social_group.name] = idx
+        update_sgs_distribution(conn)
 
         iterable = (
-            tqdm(distribution.items(), total=len(distribution), desc="Saving houses")
+            tqdm(distribution.items(), total=len(distribution), desc=f"Saving houses year={year}")
             if verbose
             else iter(distribution.items())
         )
+        # statements_rows = 0
+        # statements_execute = 0
+        deleted_buildings = conn.execute(
+            delete(t_population_divided).where(
+                t_population_divided.c.year == year, t_population_divided.c.house_id.in_(distribution.index.to_list())
+            )
+        ).rowcount
+
+        if deleted_buildings > 0:
+            logger.debug("Deleted {} buildings already present", deleted_buildings)
         for house_id, distribution_array in iterable:
+            statement = insert(t_population_divided).values(
+                year=year,
+                house_id=house_id,
+            )
+            statement_values: list[dict] = []
+
             for social_group_name, people_division in func(distribution_array).items():
                 social_group_id = social_groups_ids.get(social_group_name)
                 if social_group_id is None:
                     raise ValueError(
                         f"Could not insert people division because social group '{social_group_name}' is not present"
                     )
-                for age, (men, women) in enumerate(zip(people_division.men, people_division.women)):
-                    # insert_data(house_id, True, age, social_group_id, people)
-                    cur.execute(
-                        "INSERT INTO population_divided (house_id, age, social_group_id, men, women)"
-                        " VALUES (?, ?, ?, ?, ?)",
-                        (house_id, age, social_group_id, men, women),
-                    )
 
-        database.commit()
-    finally:
-        if isinstance(sqlite_db_or_path, str):
-            database.close()
+                statement_values.extend(
+                    [
+                        {
+                            "social_group_id": social_group_id,
+                            "age": age,
+                            "men": men,
+                            "women": women,
+                        }
+                        for age, (men, women) in enumerate(zip(people_division.men, people_division.women))
+                        if men > 0 or women > 0
+                    ]
+                )
+
+            # statements_execute += 1
+            # statements_rows += len(statement_values)
+            if len(statement_values) > 0:
+                conn.execute(statement, statement_values)
+
+        # print(f"Total number of statements - {statements_execute}, rows to be inserted - {statements_rows}")
+        # from sqlalchemy.dialects import postgresql
+
+        # print(f"execute_example:\n{statement.compile(dialect=postgresql.dialect())}")
+        # raise NotImplementedError()
+        conn.commit()
