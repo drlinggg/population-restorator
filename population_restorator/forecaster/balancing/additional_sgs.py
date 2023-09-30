@@ -22,6 +22,8 @@ def balance_year_additional_social_groups(  # pylint: disable=too-many-locals
 ) -> None:
     """Find houses with the number of social groups highly different from the statistical
     distribution and balance them.
+
+    `houses_ids` is not used for now.
     """
     _probable_men = (t_population_divided.c.men * t_social_groups_distribution.c.men_sg).label("probable_men")
     _probable_women = (t_population_divided.c.women * t_social_groups_distribution.c.women_sg).label("probable_women")

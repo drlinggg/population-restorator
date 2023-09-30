@@ -114,7 +114,6 @@ def prepare_db(conn: Connection, prev_conn: Connection | None = None) -> None:
                 sgd_edited = True
         if sgd_edited:
             update_sgs_distribution(conn)
-            # update social_groups_distribution sgd set men_sg = men_probability / (select sum(men_probability) from social_groups_distribution sgd_inner join social_groups_probabilities sg on sgd_inner.social_group_id = sg.id where age = sgd.age and sg.is_primary = (select is_primary from social_groups_probabilities where id = sgd.social_group_id)) where men_probability <> 0;
 
         houses_present = set(conn.execute(select(distinct(t_houses_tmp.c.id))).scalars())
         for house_id, capacity in prev_conn.execute(select(t_houses_tmp.c.id, t_houses_tmp.c.capacity)):

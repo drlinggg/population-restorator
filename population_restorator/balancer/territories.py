@@ -43,7 +43,7 @@ def balance_territories(territory: Territory, rng: np.random.Generator | None = 
             return_counts=True,
         )
         for idx, change in zip(change_values[0], change_values[1]):
-            territory.inner_territories[idx].population += change * sign
+            territory.inner_territories[idx].population += int(change * sign)
     else:
         logger.trace("Territory {} is balanced well", territory.name)
 

@@ -40,7 +40,12 @@ class Territory:
         """Get single DataFrame containing all inner territories houses."""
         if self.inner_territories is None:
             return self.houses
-        return pd.concat(it.get_all_houses() for it in self.inner_territories).reset_index(drop=True)
+        it_with_houses = list(
+            filter(lambda df: df.shape[0] > 0, (it.get_all_houses() for it in self.inner_territories))
+        )
+        if len(it_with_houses) > 0:
+            return pd.concat(it_with_houses).reset_index(drop=True)
+        return self.inner_territories[0].get_all_houses()
 
     def get_total_houses_population(self, raise_on_population_missing: bool = True) -> int:
         """Get total population of all territories houses. Will throw ValueError if not each of the houses

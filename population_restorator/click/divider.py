@@ -1,7 +1,7 @@
 """Balance command-line utility configuration is defined here."""
 from __future__ import annotations
-import datetime
 
+import datetime
 import sys
 import traceback
 
