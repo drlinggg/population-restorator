@@ -42,10 +42,13 @@ def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
         max_age: int = conn.execute(select(func.max(t_population_divided.c.age))).scalar_one()
 
         if max_age != len(survivability_coefficients.men):
-            raise ValueError(
-                f"Survivability coefficients age given for {len(survivability_coefficients.men) + 1} ages, but max"
-                f" age in the database is {max_age}"
+            logger.warning(
+                "Survivability coefficients age given for max age {}, but max age in the database is {}."
+                " Using coefficients",
+                len(survivability_coefficients.men),
+                max_age,
             )
+            max_age = len(survivability_coefficients.men)
 
         current_men, current_women = np.array([0] * (max_age + 1)), np.array([0] * (max_age + 1))
         cur = conn.execute(

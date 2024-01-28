@@ -63,7 +63,7 @@ def divide_houses(  # pylint: disable=too-many-locals
         sgs_a_range = list(range(sgs.shape[0], sgs.shape[0] + sgs_a.shape[2]))
         additional_population = population * social_groups.get_additional_probability()
         for setteled_additionals in range(int(additional_population)):
-            for _tries in range(max_additional_sgs_tries):
+            for _ in range(max_additional_sgs_tries):
                 person_idx = rng.choice(house_pop)
                 sg_idx = person_idx // (sgs.shape[1] * sgs.shape[2])
                 sex_idx = (person_idx - sg_idx * sgs.shape[1] * sgs.shape[2]) // sgs.shape[2]
@@ -73,10 +73,11 @@ def divide_houses(  # pylint: disable=too-many-locals
                     break
             else:
                 logger.warning(
-                    "Could not add additional population of a house number {} ({} of {} setteled)",
+                    "Could not add additional population of a house number {} ({} of {} setteled by {} tries)",
                     house_number,
                     setteled_additionals,
                     int(additional_population),
+                    max_additional_sgs_tries,
                 )
                 break
 

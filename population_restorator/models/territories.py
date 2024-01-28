@@ -45,6 +45,8 @@ class Territory:
         )
         if len(it_with_houses) > 0:
             return pd.concat(it_with_houses).reset_index(drop=True)
+        if len(self.inner_territories) == 0:
+            return pd.DataFrame()
         return self.inner_territories[0].get_all_houses()
 
     def get_total_houses_population(self, raise_on_population_missing: bool = True) -> int:
