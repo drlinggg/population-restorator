@@ -86,8 +86,6 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
             if verbose
             else iter(distribution.items())
         )
-        # statements_rows = 0
-        # statements_execute = 0
         deleted_buildings = conn.execute(
             delete(t_population_divided).where(
                 t_population_divided.c.year == year, t_population_divided.c.house_id.in_(distribution.index.to_list())

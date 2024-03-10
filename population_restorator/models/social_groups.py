@@ -66,6 +66,8 @@ class SocialGroupsDistribution:
         First dimension is sex (0 - man, 1 - woman), second - age (index = age), third - social group (index = index
         in `self.additionals`)
         """
+        if len(self.additional) == 0:
+            return np.array([], ndmin=2)
         sgs = np.array([sg.distribution.as_probability_array() * sg.probability for sg in self.additional])
         return np.array(
             [
@@ -87,6 +89,8 @@ class SocialGroupsDistribution:
 
     def get_additional_probability(self) -> float:
         """Get a summary probability for a person to be a part of any additional social group"""
+        if len(self.additional) == 0:
+            return 0.0
         return sum(sg.probability for sg in self.additional)
 
     def get_resulting_function(self) -> Callable[[np.ndarray], dict[str, PeopleDivision]]:

@@ -29,7 +29,7 @@ def parse_distribution(
     Raise `RuntimeError` in case of any unexpected situation.
     """
     primary, additional, ages = _parse_to_tmp(filename)
-    if len(primary) == 0 or len(additional) == 0:
+    if len(primary) == 0 and len(additional) == 0:
         return SocialGroupsDistribution([], [])
 
     for s_g in itertools.chain(primary, additional):
