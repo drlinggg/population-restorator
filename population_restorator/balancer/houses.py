@@ -71,7 +71,7 @@ def balance_houses(territory: Territory, rng: np.random.Generator | None = None)
     total_living_area = sum(distribution)
     distribution = [area / total_living_area for area in distribution]
     change_values = np.unique(
-        rng.choice(list(range(territory.houses.shape[0])), abs(compensation), replace=True, p=distribution),
+        rng.choice(list(range(territory.houses.shape[0])), int(abs(compensation)), replace=True, p=distribution),
         return_counts=True,
     )
     houses_population = list(territory.houses["population"])
