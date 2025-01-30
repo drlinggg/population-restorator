@@ -1,7 +1,7 @@
 """City territories class and methods are defined here."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 from loguru import logger
@@ -16,9 +16,11 @@ class Territory:
     houses must contain 'living_area' (float) column for the proper work.
     """
 
-    name: str
     population: int | None
-    inner_territories: list["Territory"] | None = None
+    territory_id: int
+    parent_id: int | None
+    name: str | None = None
+    inner_territories: list["Territory"] = field(default_factory=list)
     houses: pd.DataFrame | None = None
 
     def get_total_living_area(self) -> float:
@@ -107,3 +109,17 @@ class Territory:
                 else None
             ),
         }
+
+    def find_inner_territory_by_id(self, territory_id) -> Territory:
+        #todo desc
+
+        stack = [self]
+
+        while stack:
+            current_territory = stack.pop()
+            if current_territory.territory_id == territory_id:
+                return current_territory
+            for inner_territory in reversed(current_territory.inner_territories): 
+                stack.append(inner_territory)
+
+        return None

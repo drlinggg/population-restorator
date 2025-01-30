@@ -6,15 +6,11 @@ from numpy import nan
 from population_restorator.models import Territory
 
 
-def _check_intergrity(outer_territories: pd.DataFrame, inner_territories: pd.DataFrame, houses: pd.DataFrame) -> None:
-    if "name" not in outer_territories.columns:
-        raise ValueError("'name' column is missing in outer_territories")
-    if "name" not in inner_territories.columns:
-        raise ValueError("'name' column is missing in inner_territories")
-    if "outer_territory" not in inner_territories.columns:
-        raise ValueError("'outer_territory' column is missing in inner_territories")
-    if "inner_territory" not in houses.columns:
-        raise ValueError("'inner_territory' column is missing in houses")
+def _check_intergrity(territories: pd.DataFrame, houses: pd.DataFrame) -> None:
+    if "name" not in territories.columns:
+        raise ValueError("'name' column is missing in territories")
+    if "parent_id" not in territories.columns:
+        raise ValueError("'parent_id' column is missing in territories")
     if "living_area" not in houses.columns:
         raise ValueError("'living_area' column is missing in houses")
     if (good_houses_count := len(houses["living_area"] >= 0)) != houses.shape[0]:
@@ -26,44 +22,52 @@ def _check_intergrity(outer_territories: pd.DataFrame, inner_territories: pd.Dat
 
 
 def city_as_territory(
-    total_population: int, outer_territories: pd.DataFrame, inner_territories: pd.DataFrame, houses: pd.DataFrame
+    total_population: int, internal_territories_df: pd.DataFrame, houses: pd.DataFrame
 ) -> Territory:
+
+    #todo desc
+
     """Represent city with two layers of territory division as a single territory.
 
     Args:
-        total_population (int): total city population
-        outer_territories (DataFrame): pandas DataFrame of outer city territories, must contain 'name' (str)
-        and optionally 'population' columns
-        inner_territories (DataFrame): pandas DataFrame of inner city territories, must contain 'name' (str),
-        'outer_territory' and optionally 'population' columns. Each 'outer_territory' column value must be present in
-        `outer_territories`.
+        ...
         houses (DataFrame): houses dataframe, must contain 'living_area' (float) and 'inner_territory' (str) columns.
         Each 'inner_territory' column value must be present in `inner_territories`.
 
     Returns:
-        Territory: territory named 'city' containing all of the outer territories, each of them containing corresponding
-        inner territories, each of them containing corresponding buildings.
+        ...
     """
-    _check_intergrity(outer_territories, inner_territories, houses)
+
+    _check_intergrity(internal_territories_df, houses)
     logger.debug("Returning city as territory")
-    return Territory(
-        "city",
-        total_population,
-        [
+
+    city = Territory("Бибирево", total_population, internal_territories_df.iloc[0]['parent_id'], None)
+
+    territories: list["Territory"] = list()
+    cur_parent = internal_territories_df.iloc[0]['parent_id']
+
+    for i in range(len(internal_territories_df)):
+        if (cur_parent != internal_territories_df.iloc[i]['parent_id']):
+            territory = city.find_inner_territory_by_id(cur_parent)
+            if not(territory.inner_territories):
+                territory.inner_territories = list()
+            territory.inner_territories = territories
+            territories = []
+            cur_parent = internal_territories_df.iloc[i]['parent_id']
+                
+        territories.append(
             Territory(
-                ot["name"],
-                ot["population"] if "population" in ot else None,
-                [
-                    Territory(
-                        it["name"],
-                        it["population"] if "population" in it else None,
-                        houses=houses[houses["inner_territory"] == it["name"]].copy().reset_index(drop=True),
-                    )
-                    for _, it in inner_territories[inner_territories["outer_territory"] == ot["name"]]
-                    .replace({nan: None})
-                    .iterrows()
-                ],
+                internal_territories_df.iloc[i]['name'],
+                internal_territories_df.iloc[i]['population'],
+                internal_territories_df.iloc[i]['territory_id'],
+                internal_territories_df.iloc[i]['parent_id'],
             )
-            for _, ot in outer_territories.replace({nan: None}).iterrows()
-        ],
-    )
+        )
+        
+    territory = city.find_inner_territory_by_id(cur_parent)
+    territory.inner_territories = territories
+
+    # do stuff with houses
+
+    return city
+
