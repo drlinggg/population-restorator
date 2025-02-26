@@ -9,54 +9,57 @@ from loguru import logger
 
 @dataclass
 class Territory:
-    """City inner or outer territory either with the next level territory or with buildings.
-
+    """
+    City inner territory either with the next level territory or with buildings.
     Multiple territories layers can be represented this way, starting with the city itself.
-
     houses must contain 'living_area' (float) column for the proper work.
     """
 
-    population: int | None
+    population: int
     territory_id: int
-    parent_id: int | None
+    parent_id: int | None = None
     name: str | None = None
     inner_territories: list["Territory"] = field(default_factory=list)
     houses: pd.DataFrame | None = None
 
     def get_total_living_area(self) -> float:
         """Get total living area of all houses of the territory (its inner territories)."""
-        if self.inner_territories is not None:
+        if len(self.inner_territories) != 0:
             return sum(it.get_total_living_area() for it in self.inner_territories)
-        return self.houses["living_area"].sum() if not self.houses.empty else 0.0
+
+        return self.houses["living_area"].sum() if self.houses.shape[0] else 0.0
 
     def get_total_territories_population(self) -> int:
         """Get total populaton of the lower level of territories."""
-        if self.inner_territories is None:
+        if len(self.inner_territories) == 0:
             return self.population
+
         populations = [it.get_total_territories_population() for it in self.inner_territories]
-        if None in populations:
-            return self.population
+
         return sum(populations)
 
     def get_all_houses(self) -> pd.DataFrame:
         """Get single DataFrame containing all inner territories houses."""
-        if self.inner_territories is None:
+
+        if len(self.inner_territories) == 0:
             return self.houses
+
         it_with_houses = list(
             filter(lambda df: df.shape[0] > 0, (it.get_all_houses() for it in self.inner_territories))
         )
+
         if len(it_with_houses) > 0:
             return pd.concat(it_with_houses).reset_index(drop=True)
-        if len(self.inner_territories) == 0:
-            return pd.DataFrame()
+
         return self.inner_territories[0].get_all_houses()
 
     def get_total_houses_population(self, raise_on_population_missing: bool = True) -> int:
-        """Get total population of all territories houses. Will throw ValueError if not each of the houses
+        """
+        Get total population of all territories houses. Will throw ValueError if not each of the houses
         DataFrames have 'population' column and `raise_on_population_missing` is set to True. Otherwise will
         ignore buildings without 'population' column.
         """
-        if self.inner_territories is not None:
+        if len(self.inner_territories) != 0:
             return sum(it.get_total_houses_population() for it in self.inner_territories)
 
         if "population" not in self.houses.columns:
@@ -65,11 +68,13 @@ class Territory:
             return 0
 
         try:
-            return int(self.houses["population"].sum())
+            if (self.name == "деревня Самойлово"):
+                print(self.houses, "TEST")
+            return self.houses["population"].sum()
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Could not return sum of territory '{}' houses population: {!r}", self.name, exc)
             if raise_on_population_missing:
-                raise ValueError(f"Could not get summary population of a tettiroty '{self.name}'") from exc
+                raise ValueError(f"Could not get summary population of a territory '{self.name}'") from exc
             return 0
 
     def copy(self) -> "Territory":
@@ -111,7 +116,7 @@ class Territory:
         }
 
     def find_inner_territory_by_id(self, territory_id) -> Territory:
-        #todo desc
+        """Stack using method checking every node of tree to find territory with given id"""
 
         stack = [self]
 

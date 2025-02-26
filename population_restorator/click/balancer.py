@@ -12,7 +12,7 @@ from loguru import logger
 from population_restorator.utils import read_file
 from population_restorator.utils.data_saver import to_file
 
-from population_restorator.scenarios import balance
+from population_restorator.scenarios import balance as pbalance
 
 from .main_group import main
 
@@ -26,7 +26,7 @@ from .main_group import main
     required=True,
 )
 @click.option(
-    "--inner_territories",
+    "--territories",
     "-di",
     type=click.Path(exists=True, dir_okay=False),
     help="Path to the inner territories file (.json, .geojson, .xlsx and .csv are supported),"
@@ -34,31 +34,19 @@ from .main_group import main
     required=True,
 )
 @click.option(
-    "--outer_territories",
-    "-do",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Path to the outer territories file (.json, .gejson, .xlsx and .csv are fine),"
-    " must contain 'name' (str) and optionally 'population' (int) columns",
-    required=True,
-)
-@click.option(
     "--houses",
     "-dh",
     type=click.Path(exists=True, dir_okay=False),
-    help="Path to the houses (dwellings) file (.json, .gejson, .xlsx and .csv are fine),"
+    help="Path to the houses (dwellings) file (.json, .geojson, .xlsx and .csv are fine),"
     " must contain 'living_area' (float), 'outer_territory' (str) and 'inner_territory' (str) columns",
     required=True,
 )
 @click.option(
-    "--verbose", "-v", is_flag=True, help="Increase logger verbosity to DEBUG and print some additional stataments"
-)
-@click.option(
     "--territories_output",
     "-oi",
-    type=click.UNPROCESSED,
-    metavar="Path",
+    type=click.Path(dir_okay=False),
     help="Filename for a balanced inner territories export (.json, .xlsx and .csv formats are supported)",
-    default=None,
+    default="output/territories.json",
     show_default=True,
 )
 @click.option(
@@ -66,18 +54,22 @@ from .main_group import main
     "-oh",
     type=click.Path(dir_okay=False),
     help="Filename for a populated buildings export (.json, .geojson, .xlsx and .csv formats are supported)",
-    default="houses_balanced.csv",
+    default="output/houses.json",
     show_default=True,
 )
-def balance(  # pylint: disable=too-many-arguments,too-many-locals
+@click.option(
+    "--verbose", "-v", 
+    is_flag=True, 
+    help="Increase logger verbosity to DEBUG and print some additional statements"
+)
+def balance(
     total_population: int,
     territories: str,
     houses: str,
-    verbose: bool = False,
-    territories_output: str, #tobechanged
+    territories_output: str,
     houses_output: str,
+    verbose: bool = False
 ) -> None:
-
     """Balance dwellings total population
 
     Balance population for the given city provided with total population (accurate value), populations of inner and
@@ -97,6 +89,4 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
             traceback.print_exc()
         sys.exit(1)
 
-    #handle None output path
-    balance(total_population, territories, houses, verbose, territories_output, houses_output)
-
+    pbalance(total_population, territories_df, houses_df, verbose, territories_output, houses_output)

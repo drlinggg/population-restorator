@@ -10,12 +10,13 @@ from population_restorator.models import Territory
 
 
 def balance_territories(territory: Territory, rng: np.random.Generator | None = None) -> None:
-    """Balance territories population without balancing houses. The process is performed for all depth levels
-    from top to bottom.
+    """Balance territories population without balancing houses. 
+    The process is performed for all depth levels from top to bottom.
 
     `rng` is an optional random generator from numpy.
     """
-    if territory.inner_territories is None:
+
+    if len(territory.inner_territories) == 0:
         return
 
     if rng is None:
@@ -37,11 +38,20 @@ def balance_territories(territory: Territory, rng: np.random.Generator | None = 
         sign = 1 if compensation > 0 else -1
         distribution = [it.get_total_living_area() for it in territory.inner_territories]
         total_living_area = sum(distribution)
-        distribution = [area / total_living_area for area in distribution]
+
+        if not (total_living_area == 0.0):
+            distribution = [area / total_living_area for area in distribution]
+        else:
+            distribution = [1.0 / len(territory.inner_territories) for area in distribution]
+
         change_values = np.unique(
-            rng.choice(list(range(len(territory.inner_territories))), abs(compensation), replace=True, p=distribution),
+            rng.choice(list(range(len(territory.inner_territories))), 
+            abs(compensation), 
+            replace=True, 
+            p=distribution),
             return_counts=True,
         )
+
         for idx, change in zip(change_values[0], change_values[1]):
             territory.inner_territories[idx].population += int(change * sign)
     else:

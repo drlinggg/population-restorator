@@ -13,61 +13,74 @@ def _check_intergrity(territories: pd.DataFrame, houses: pd.DataFrame) -> None:
         raise ValueError("'parent_id' column is missing in territories")
     if "living_area" not in houses.columns:
         raise ValueError("'living_area' column is missing in houses")
+    if "territory_id" not in houses.columns:
+        raise ValueError("'territory_id' column is missing in houses")
     if (good_houses_count := len(houses["living_area"] >= 0)) != houses.shape[0]:
         raise ValueError(
             "some houses have 'living_area' value invalid or < 0 -"
             f" totally {houses.shape[0] - good_houses_count} entries"
         )
+
+    houses["living_area"] = houses["living_area"].fillna(0)
+
     logger.debug("Data integrity check passed")
 
 
 def city_as_territory(
-    total_population: int, internal_territories_df: pd.DataFrame, houses: pd.DataFrame
+    total_population: int, internal_territories_df: pd.DataFrame, internal_houses_df: pd.DataFrame
 ) -> Territory:
 
-    #todo desc
-
     """Represent city with two layers of territory division as a single territory.
-
     Args:
-        ...
-        houses (DataFrame): houses dataframe, must contain 'living_area' (float) and 'inner_territory' (str) columns.
-        Each 'inner_territory' column value must be present in `inner_territories`.
-
+        total_population (int): total city population
+        internal_territories_df (DataFrame) : territories dataframe of inner territories of city (tree-like presentable)
+        internal_houses_df (DataFrame): houses dataframe, must contain 'living_area' (float) and 'territory_id' (int) columns.
     Returns:
         ...
     """
 
-    _check_intergrity(internal_territories_df, houses)
+    _check_intergrity(internal_territories_df, internal_houses_df)
+    internal_territories_df.sort_values("parent_id", inplace=True)
+    internal_houses_df.sort_values("territory_id", inplace=True)
+
     logger.debug("Returning city as territory")
+    city = Territory(
+            population=total_population, 
+            territory_id=internal_territories_df.iloc[0]['parent_id'],
+            parent_id = None,
+            name = None,
+            inner_territories = list(),
+            houses = None
+    )
 
-    city = Territory("Бибирево", total_population, internal_territories_df.iloc[0]['parent_id'], None)
 
+    """This creating territory tree method is working when all territory_id > parent_id for each territory"""
     territories: list["Territory"] = list()
     cur_parent = internal_territories_df.iloc[0]['parent_id']
 
     for i in range(len(internal_territories_df)):
         if (cur_parent != internal_territories_df.iloc[i]['parent_id']):
             territory = city.find_inner_territory_by_id(cur_parent)
-            if not(territory.inner_territories):
-                territory.inner_territories = list()
             territory.inner_territories = territories
             territories = []
             cur_parent = internal_territories_df.iloc[i]['parent_id']
                 
         territories.append(
             Territory(
-                internal_territories_df.iloc[i]['name'],
                 internal_territories_df.iloc[i]['population'],
                 internal_territories_df.iloc[i]['territory_id'],
                 internal_territories_df.iloc[i]['parent_id'],
+                internal_territories_df.iloc[i]['name'],
             )
         )
-        
+
     territory = city.find_inner_territory_by_id(cur_parent)
     territory.inner_territories = territories
 
-    # do stuff with houses
+
+    """Adding to each territory its houses"""
+    for i in range(len(internal_territories_df)):
+        territory = city.find_inner_territory_by_id(internal_territories_df.iloc[i]['territory_id'])
+        territory.houses = internal_houses_df.query(f'territory_id == {territory.territory_id}')
 
     return city
-
