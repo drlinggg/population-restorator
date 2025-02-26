@@ -1,4 +1,5 @@
 """Database preparation steps are defined here."""
+from __future__ import annotations
 
 from typing import Callable
 

@@ -1,4 +1,6 @@
 """Age-sex balancing methods are defined here."""
+from __future__ import annotations
+
 from typing import Callable
 
 import numpy as np

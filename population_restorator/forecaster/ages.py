@@ -1,4 +1,6 @@
 """Generic ages forecasting algorithm is defined here."""
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Callable
 
