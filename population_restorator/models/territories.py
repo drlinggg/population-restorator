@@ -20,7 +20,7 @@ class Territory:
     parent_id: int | None = None
     name: str | None = None
     inner_territories: list["Territory"] = field(default_factory=list)
-    houses: pd.DataFrame | None = None
+    houses: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=['territory_id', 'living_area', 'geometry']))
 
     def get_total_living_area(self) -> float:
         """Get total living area of all houses of the territory (its inner territories)."""
@@ -68,8 +68,6 @@ class Territory:
             return 0
 
         try:
-            if (self.name == "деревня Самойлово"):
-                print(self.houses, "TEST")
             return self.houses["population"].sum()
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Could not return sum of territory '{}' houses population: {!r}", self.name, exc)

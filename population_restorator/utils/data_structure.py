@@ -22,6 +22,7 @@ def _check_intergrity(territories: pd.DataFrame, houses: pd.DataFrame) -> None:
         )
 
     houses["living_area"] = houses["living_area"].fillna(0)
+    territories["population"] = territories["population"].fillna(0)
 
     logger.debug("Data integrity check passed")
 
@@ -46,7 +47,7 @@ def city_as_territory(
     logger.debug("Returning city as territory")
     city = Territory(
             population=total_population, 
-            territory_id=internal_territories_df.iloc[0]['parent_id'],
+            territory_id=internal_territories_df.iloc[0]['parent_id'] if len(internal_territories_df) else None,
             parent_id = None,
             name = None,
             inner_territories = list(),
@@ -80,7 +81,7 @@ def city_as_territory(
 
     """Adding to each territory its houses"""
     for i in range(len(internal_territories_df)):
-        territory = city.find_inner_territory_by_id(internal_territories_df.iloc[i]['territory_id'])
+        territory = city.find_inner_territory_by_id(internal_territories_df.iloc[i]['territory_id']) #None
         territory.houses = internal_houses_df.query(f'territory_id == {territory.territory_id}')
 
     return city

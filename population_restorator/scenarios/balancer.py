@@ -42,6 +42,7 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
         logger.remove()
         logger.add(sys.stderr, level="INFO")
 
+    #555 error todo check
     try:
         city = city_as_territory(total_population, territories_df, houses_df)
     except Exception as exc:  # pylint: disable=broad-except
@@ -69,11 +70,11 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
                 [
 	                {
 	                    "name": territory.name,
-	                    "population": territory.population,
+	                    "population": territory.population, #tobeunderstood why it doubles below
 	                    "inner_territories_population": territory.get_total_territories_population(),
 	                    "houses_number": territory.get_all_houses().shape[0],
 	                    "houses_population": territory.get_total_houses_population(),
-	                    "total_living_area": territory.get_total_living_area(),
+	                    "total_living_area": territory.get_total_living_area(), #tobefixed floatin .00000000000001
 	                }
 	                for territory in city.inner_territories
                 ]

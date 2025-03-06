@@ -44,6 +44,10 @@ def balance_territories(territory: Territory, rng: np.random.Generator | None = 
         else:
             distribution = [1.0 / len(territory.inner_territories) for area in distribution]
 
+        print(distribution)
+
+        print(territory.inner_territories)
+
         change_values = np.unique(
             rng.choice(list(range(len(territory.inner_territories))), 
             abs(compensation), 
