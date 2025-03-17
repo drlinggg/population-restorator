@@ -53,6 +53,8 @@ def divide_houses(  # pylint: disable=too-many-locals
             rng.choice(sgs_range, population, replace=True, p=sgs_prob),
             return_counts=True,
         )
+        
+        
         div_pop = single_house_population.flatten()
         house_pop = []
         for idx, cnt in zip(change_values[0], change_values[1]):

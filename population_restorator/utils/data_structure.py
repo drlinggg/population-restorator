@@ -53,7 +53,9 @@ def city_as_territory(
             inner_territories = list(),
             houses = None
     )
-
+    if len(internal_territories_df) == 0:
+        logger.warning("Territory has no inner territories")
+        return city
 
     """This creating territory tree method is working when all territory_id > parent_id for each territory"""
     territories: list["Territory"] = list()
@@ -81,7 +83,7 @@ def city_as_territory(
 
     """Adding to each territory its houses"""
     for i in range(len(internal_territories_df)):
-        territory = city.find_inner_territory_by_id(internal_territories_df.iloc[i]['territory_id']) #None
+        territory = city.find_inner_territory_by_id(internal_territories_df.iloc[i]['territory_id'])
         territory.houses = internal_houses_df.query(f'territory_id == {territory.territory_id}')
 
     return city

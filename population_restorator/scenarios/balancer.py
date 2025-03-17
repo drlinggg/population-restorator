@@ -1,7 +1,6 @@
 """Balance command-line utility configuration is defined here."""
 from __future__ import annotations
 
-import itertools
 import sys
 import traceback
 
@@ -9,7 +8,6 @@ import pandas as pd
 from loguru import logger
 
 from population_restorator.balancer import balance_houses, balance_territories
-from population_restorator.utils import read_file
 from population_restorator.utils.data_saver import to_file
 from population_restorator.utils.data_structure import city_as_territory
 
@@ -18,25 +16,13 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
     territories_df: pd.DataFrame,
     houses_df: pd.DataFrame,
     verbose: bool = False,
-    territories_output: str = 'output/territories.json',
-    houses_output: str = 'output/houses.json',
-) -> None:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Balance dwellings total population
 
     Balance population for the given city provided with total population (accurate value), populations of inner and
     outer territory units (optional), list of buildings with living area value, and probability values of a person
     sex, age and social group.
     """
-
-    if territories_output is not None:
-        if territories_output.lower().endswith(".geojson"):
-            logger.error("Unable to export balanced inner territories as geojson, use .csv, .xlsx or .json instead")
-            sys.exit(1)
-
-    if houses_output is not None:
-        if houses_output.lower().endswith(".geojson"):
-            logger.error("Unable to export balanced houses as geojson, use .csv, .xlsx or .json instead")
-            sys.exit(1)
 
     if not verbose:
         logger.remove()
@@ -63,35 +49,33 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
     logger.info("Balancing city houses")
     balance_houses(city)
 
-    if territories_output is not None:
-        logger.opt(colors=True).info("Exporing territories to file <cyan>{}</cyan>", territories_output)
-        territories_new_df = pd.DataFrame(
-            (
-                [
-	                {
-	                    "name": territory.name,
-	                    "population": territory.population, #tobeunderstood why it doubles below
-	                    "inner_territories_population": territory.get_total_territories_population(),
-	                    "houses_number": territory.get_all_houses().shape[0],
-	                    "houses_population": territory.get_total_houses_population(),
-	                    "total_living_area": territory.get_total_living_area(), #tobefixed floatin .00000000000001
-	                }
-	                for territory in city.inner_territories
-                ]
-                +
-                [
-	                {
-	                    "name": "City",
-	                    "population": city.population,
-	                    "inner_territories_population": city.get_total_territories_population(),
-	                    "houses_number": city.get_all_houses().shape[0],
-	                    "houses_population": city.get_total_houses_population(),
-	                    "total_living_area": city.get_total_living_area(),
-                    }
-                ]
-            )
-        )
-        to_file(territories_new_df, territories_output)
+    territories_new_df = pd.DataFrame(
+        (
+            # all inner territories representaning
+            [
+                {
+	                "name": territory.name,
+	                "population": territory.population,  # tobeunderstood why it doubles below
+	                "inner_territories_population": territory.get_total_territories_population(),
+	                "houses_number": territory.get_all_houses().shape[0],
+	                "houses_population": territory.get_total_houses_population(),
+	                "total_living_area": territory.get_total_living_area(),  # tobefixed floatin .00000000000001
+	            }
+	            for territory in city.inner_territories
+	        ]
+	         + 
+            # self city representating
+            [
+	            {
+	                "name": "City",
+	                "population": city.population,
+	                "inner_territories_population": city.get_total_territories_population(),
+	                "houses_number": city.get_all_houses().shape[0],
+	                "houses_population": city.get_total_houses_population(),
+	                "total_living_area": city.get_total_living_area(),
+	            }
+	        ]
+	    )
+	)
 
-    logger.opt(colors=True).info("Saving to file <cyan>{}</cyan>", houses_output)
-    to_file(city.get_all_houses(), houses_output)
+    return (territories_new_df, city.get_all_houses())

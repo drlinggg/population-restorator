@@ -22,7 +22,7 @@ def balance_houses(territory: Territory, rng: np.random.Generator | None = None)
             balance_houses(inner_territory)
         return
 
-    if territory.houses.shape[0] == 0:
+    if len(territory.houses) == 0:
         territory.houses["population"] = 0
         return
 

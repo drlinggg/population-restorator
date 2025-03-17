@@ -1,12 +1,10 @@
 """Balance command-line utility configuration is defined here."""
 from __future__ import annotations
 
-import itertools
 import sys
 import traceback
 
 import click
-import pandas as pd
 from loguru import logger
 
 from population_restorator.utils import read_file
@@ -89,4 +87,12 @@ def balance(
             traceback.print_exc()
         sys.exit(1)
 
-    pbalance(total_population, territories_df, houses_df, verbose, territories_output, houses_output)
+    territories_df, houses_df = pbalance(total_population, 
+                                         territories_df, 
+                                         houses_df, 
+                                         verbose)
+
+    logger.opt(colors=True).info("Saving to file <cyan>{}</cyan>", territories_output)
+    to_file(territories_df, territories_output)
+    logger.opt(colors=True).info("Saving to file <cyan>{}</cyan>", houses_output)
+    to_file(houses_df, houses_output)
