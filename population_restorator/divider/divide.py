@@ -87,6 +87,7 @@ def divide_houses(  # pylint: disable=too-many-locals
 
                 additional_sg_idx = rng.choice(sgs_a_range, p=sgs_a[sex_idx, age])
                 div_pop[additional_sg_idx, sex_idx, age] += 1
+
         divided_population.append(div_pop.copy())
 
     return divided_population

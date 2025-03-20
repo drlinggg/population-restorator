@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from pydantic import Field
+
 import pandas as pd
 from loguru import logger
 
@@ -31,6 +33,7 @@ class Territory:
 
     def get_total_territories_population(self) -> int:
         """Get total populaton of the lower level of territories."""
+
         if len(self.inner_territories) == 0:
             return self.population
 
