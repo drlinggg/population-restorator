@@ -38,8 +38,11 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
         logger.opt(colors=True).info("Using <cyan>{}</cyan> as a year to save a forecast", year)
 
     logger.info("Dividing houses ({}) population", len(houses_df))
+    #print(houses_df["population"]) Error tuple no slices
+    #TypeError: tuple indices must be integers or slices, not str
     distribution_series = pd.Series(
         divide_houses(houses_df["population"].astype(int).to_list(), distribution), index=houses_df.index
     )
+
 
     return (houses_df, distribution_series)
