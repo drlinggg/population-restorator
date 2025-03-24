@@ -15,6 +15,7 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
     total_population: int,
     territories_df: pd.DataFrame,
     houses_df: pd.DataFrame,
+    main_territory: pd.DataFrame | None = None,
     verbose: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Balance dwellings total population
@@ -28,9 +29,8 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
         logger.remove()
         logger.add(sys.stderr, level="INFO")
 
-    #555 error todo check
     try:
-        city = city_as_territory(total_population, territories_df, houses_df)
+        city = city_as_territory(total_population, territories_df, houses_df, main_territory)
     except Exception as exc:  # pylint: disable=broad-except
         logger.critical("Exception on representing city as territory: {!r}", exc)
         if verbose:

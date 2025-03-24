@@ -1,4 +1,6 @@
 """Data structure transformation methods are defined here."""
+from __future__ import annotations
+
 import pandas as pd
 from loguru import logger
 from numpy import nan
@@ -28,7 +30,10 @@ def _check_intergrity(territories: pd.DataFrame, houses: pd.DataFrame) -> None:
 
 
 def city_as_territory(
-    total_population: int, internal_territories_df: pd.DataFrame, internal_houses_df: pd.DataFrame
+    total_population: int,
+    internal_territories_df: pd.DataFrame,
+    internal_houses_df: pd.DataFrame,
+    main_territory: pd.DataFrame | None = None
 ) -> Territory:
 
     """Represent city with two layers of territory division as a single territory.
@@ -44,21 +49,36 @@ def city_as_territory(
     internal_territories_df.sort_values("parent_id", inplace=True)
     internal_houses_df.sort_values("territory_id", inplace=True)
 
+    if (main_territory is None):
+        logger.warning("main territory is None, trying to resolve...")
+        main_territory_id = internal_territories_df.iloc[0]['parent_id'] if len(internal_territories_df) else None
+        main_territory_parent_id = None,
+        main_territory_name = None,
+    else:
+        main_territory_id = main_territory.iloc[0]["territory_id"]
+        main_territory_parent_id = main_territory.iloc[0]["parent_id"]
+        main_territory_name = main_territory.iloc[0]["name"]
+
+
     logger.debug("Returning city as territory")
     city = Territory(
-            population=total_population, 
-            territory_id=internal_territories_df.iloc[0]['parent_id'] if len(internal_territories_df) else None,
-            parent_id = None,
-            name = None,
-            inner_territories = list(),
-            houses = None
+            population=total_population,
+            territory_id=main_territory_id,
+            parent_id=main_territory_parent_id,
+            name=main_territory_name,
+            inner_territories=[],
+            houses=pd.DataFrame(columns=["territory_id", "population", "living_area", "geometry"])
     )
+
     if len(internal_territories_df) == 0:
         logger.warning("Territory has no inner territories")
         return city
 
+    print(city)
+    print(internal_territories_df)
+
     """This creating territory tree method is working when all territory_id > parent_id for each territory"""
-    territories: list["Territory"] = list()
+    territories: list["Territory"] = []
     cur_parent = internal_territories_df.iloc[0]['parent_id']
 
     for i in range(len(internal_territories_df)):
@@ -67,7 +87,7 @@ def city_as_territory(
             territory.inner_territories = territories
             territories = []
             cur_parent = internal_territories_df.iloc[i]['parent_id']
-                
+
         territories.append(
             Territory(
                 internal_territories_df.iloc[i]['population'],
@@ -79,7 +99,6 @@ def city_as_territory(
 
     territory = city.find_inner_territory_by_id(cur_parent)
     territory.inner_territories = territories
-
 
     """Adding to each territory its houses"""
     for i in range(len(internal_territories_df)):

@@ -87,10 +87,10 @@ def balance(
             traceback.print_exc()
         sys.exit(1)
 
-    territories_df, houses_df = pbalance(total_population, 
-                                         territories_df, 
-                                         houses_df, 
-                                         verbose)
+    territories_df, houses_df = pbalance(total_population=total_population,
+                                         territories_df=territories_df,
+                                         houses_df=houses_df,
+                                         verbose=verbose)
 
     logger.opt(colors=True).info("Saving to file <cyan>{}</cyan>", territories_output)
     to_file(territories_df, territories_output)
