@@ -24,7 +24,8 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
     conn: Connection,
     territory_id: int,
     distribution: pd.Series,
-    houses_capacity: pd.Series,
+    #houses_capacity: pd.Series,
+    houses_df: pd.DataFrame,
     distribution_probabilities: SocialGroupsDistribution,
     year: int,
     verbose: bool = False,
@@ -42,6 +43,8 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
     """
     func = distribution_probabilities.get_resulting_function()
 
+    houses_df.set_index('house_id',drop=False, inplace=True)
+
     if distribution.shape[0] == 0:
         logger.warning("Requested to save an empty people division. Exiting without writing database.")
         return
@@ -49,7 +52,8 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
     with conn:
         prepare_db(conn)
 
-        for house_id, living_area in houses_capacity.items():
+        for house_id in houses_df.index:
+            living_area = houses_df["living_area"][house_id]
             updated = conn.execute(
                 update(t_houses_tmp).values(capacity=living_area).where(t_houses_tmp.c.id == house_id)
             ).rowcount

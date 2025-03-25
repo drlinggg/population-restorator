@@ -21,6 +21,7 @@ func: Callable
 
 def _balance_year_age(  # pylint: disable=too-many-arguments
     engine: Engine,
+    territory_id: int,
     year: int,
     age: int,
     men_needed: int,
@@ -32,7 +33,7 @@ def _balance_year_age(  # pylint: disable=too-many-arguments
     logger.debug("Forecasting year {} - age {}", year, age)
 
     with engine.connect() as conn:
-        balance_year_age(conn, age, men_needed, women_needed, year, houses_ids, rng)
+        balance_year_age(conn, territory_id, age, men_needed, women_needed, year, houses_ids, rng)
         balance_year_age_primary_social_groups(conn, year, age, houses_ids, rng)
         balance_year_additional_social_groups(conn, year, age, houses_ids, rng)
         conn.commit()
@@ -61,15 +62,16 @@ def _balance_year_age_mp(  # pylint: disable=too-many-arguments
     engine.dispose()
 
 
-def _log_year_results(conn: Connection, year: int) -> None:
+def _log_year_results(conn: Connection, territory_id: int, year: int) -> None:
     """Send current year population in the logger debug sink."""
     men_year, women_year = conn.execute(
         select(func.sum(t_population_divided.c.men), func.sum(t_population_divided.c.women))
         .select_from(t_population_divided)
         .join(
             t_social_groups_probabilities, t_population_divided.c.social_group_id == t_social_groups_probabilities.c.id
-        )
-        .where(t_population_divided.c.year == year, t_social_groups_probabilities.c.is_primary == true())
+        ).where(t_population_divided.c.year == year,
+               t_population_divided.c.territory_id == territory_id,
+               t_social_groups_probabilities.c.is_primary == true())
     ).fetchone()
 
     additionals = conn.execute(
@@ -78,12 +80,15 @@ def _log_year_results(conn: Connection, year: int) -> None:
         .join(
             t_social_groups_probabilities, t_population_divided.c.social_group_id == t_social_groups_probabilities.c.id
         )
-        .where(t_population_divided.c.year == year, t_social_groups_probabilities.c.is_primary == false())
+        .where(t_population_divided.c.year == year,
+               t_population_divided.c.territory_id == territory_id, 
+               t_social_groups_probabilities.c.is_primary == false())
     ).scalar_one()
 
     logger.info(
-        "Year {} men population: {}, female: {}. Total additional social groups count: {}",
+        "Year {}, forecast for territory_id {}, men population: {}, female: {}. Total additional social groups count: {}",
         year,
+        territory_id,
         men_year,
         women_year,
         additionals,
@@ -118,7 +123,9 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
         rng = np.random.default_rng(seed=int(time.time()))
 
     with start_engine.connect() as year_conn:
-        max_age = year_conn.execute(select(func.max(t_population_divided.c.age))).scalar_one()
+        max_age = year_conn.execute(
+            select(func.max(t_population_divided.c.age)).where(t_population_divided.c.territory_id == territory_id)
+        ).scalar_one()
 
     previous_engine = start_engine
     for i, year_dsn in enumerate(years_dsns, 1):
@@ -134,6 +141,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
             year_conn.execute(
                 delete(t_population_divided).where(
                     t_population_divided.c.year == year,
+                    t_population_divided.c.territory_id == territory_id,
                     (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
                 )
             )
@@ -146,8 +154,8 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
             ).where(
                 t_population_divided.c.year == year - 1,
                 t_population_divided.c.age != max_age,
+                t_population_divided.c.territory_id == territory_id,
                 (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
-                #territory_id = territory_id
             )
             copied = False
             for house_id, age, social_group_id, men, women in prev_conn.execute(statement):
@@ -158,7 +166,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
                         age=age + 1,
                         house_id=house_id,
                         social_group_id=social_group_id,
-                        #territory_id = territory_id
+                        territory_id=territory_id,
                         men=men,
                         women=women,
                     )
@@ -171,7 +179,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
             for j, age in enumerate(forecasted_ages.men.columns):
                 men_needed = forecasted_ages.men.iat[i, j]
                 women_needed = forecasted_ages.women.iat[i, j]
-                _balance_year_age(year_engine, year, age, men_needed, women_needed, houses_ids, rng)
+                _balance_year_age(year_engine, territory_id, year, age, men_needed, women_needed, houses_ids, rng) #??
         else:
             with mp.Pool(threads) as pool:
                 pool.starmap(
@@ -191,7 +199,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
                 )
 
         with year_engine.connect() as year_conn:
-            _log_year_results(year_conn, year)
+            _log_year_results(year_conn, territory_id, year)
 
         if callback is not None:
             callback(year_dsn, year)

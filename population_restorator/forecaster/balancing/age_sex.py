@@ -19,11 +19,11 @@ func: Callable
 
 
 def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
-    conn: Connection, age: int, increase_needed: int, is_male: bool, year: int, rng: np.random.Generator
+    conn: Connection, territory_id, age: int, increase_needed: int, is_male: bool, year: int, rng: np.random.Generator
 ) -> None:
     """Add people of the given age and sex to the houses."""
     _load = (
-        func.coalesce(func.sum(t_population_divided.c.men if is_male else t_population_divided.c.women), text("0"))
+        func.coalesce(func.sum(t_population_divided.c.men if is_male else t_population_divided.c.women), text("0")) # add here territory
         / t_houses_tmp.c.capacity
     ).label("load")
     statement = (
@@ -35,11 +35,13 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
         )
         .where(
             t_population_divided.c.year == year,
+            t_population_divided.c.territory_id == territory_id,
             t_social_groups_probabilities.c.is_primary == true(),
         )
         .group_by(t_houses_tmp.c.id, t_houses_tmp.c.capacity)
         .having(_load > 0)
     )
+    #id house_tmps arent same with people_divided
     # pylint: disable=unnecessary-direct-lambda-call
     houses_ids, houses_probs = (lambda loads: (list(loads.keys()), np.array(list(loads.values()))))(
         dict(conn.execute(statement).all())
@@ -73,8 +75,9 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
     total_probs = np.array((np.mat(houses_probs).T * sgs_probs).flat)
     total_probs /= total_probs.sum()
 
+    # len(houses_ids) == 0
     change_values = np.unique(
-        rng.choice(list(range(len(houses_ids) * len(sgs_ids))), increase_needed, replace=True, p=total_probs), 
+        rng.choice(list(range(len(houses_ids) * len(sgs_ids))), increase_needed, replace=True, p=total_probs),
         #File "numpy/random/_generator.pyx", line 803, in numpy.random._generator.Generator.choice
         #ValueError: a cannot be empty unless no samples are taken
         return_counts=True,
@@ -104,6 +107,7 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
                 insert(t_population_divided).values(
                     year=year,
                     house_id=house_id,
+                    territory_id=territory_id,
                     social_group_id=sg_id,
                     age=age,
                     **{("men" if is_male else "women"): int(change), ("women" if is_male else "men"): 0},
@@ -112,7 +116,7 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
 
 
 def _decrease_population(  # pylint: disable=too-many-arguments
-    conn: Connection, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
+    conn: Connection, territory_id: int, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
 ) -> None:
     """Remove people of the given age and sex from houses."""
     statement = (
@@ -120,7 +124,7 @@ def _decrease_population(  # pylint: disable=too-many-arguments
             t_population_divided.c.house_id,
             t_social_groups_probabilities.c.id,
             (t_population_divided.c.men if is_male else t_population_divided.c.women)
-            * (1 - t_social_groups_probabilities.c.probability),
+            #* (1 - t_social_groups_probabilities.c.probability), #here goes 0
         )
         .select_from(t_population_divided)
         .join(
@@ -129,6 +133,7 @@ def _decrease_population(  # pylint: disable=too-many-arguments
         .where(
             t_population_divided.c.year == year,
             t_population_divided.c.age == age,
+            t_population_divided.c.territory_id == territory_id,
             t_social_groups_probabilities.c.is_primary == true(),
         )
         .order_by(t_population_divided.c.house_id, t_social_groups_probabilities.c.id)
@@ -137,10 +142,10 @@ def _decrease_population(  # pylint: disable=too-many-arguments
     houses_sgs_probs = []
     for house_id, sg_id, load in conn.execute(statement):
         houses_sgs_ids.append((house_id, sg_id))
-        houses_sgs_probs.append(load)
+        houses_sgs_probs.append(float(load))
 
     houses_sgs_probs = np.array(houses_sgs_probs)
-    houses_sgs_probs /= houses_sgs_probs.sum()
+    houses_sgs_probs /= houses_sgs_probs.sum() 
 
     change_values = np.unique(
         rng.choice(list(range(len(houses_sgs_ids))), decrease_needed, replace=True, p=houses_sgs_probs),
@@ -163,6 +168,7 @@ def _decrease_population(  # pylint: disable=too-many-arguments
                 t_population_divided.c.house_id == house_id,
                 t_population_divided.c.social_group_id == sg_id,
                 t_population_divided.c.age == age,
+                t_population_divided.c.territory_id == territory_id
             )
         )
     conn.execute(
@@ -173,7 +179,7 @@ def _decrease_population(  # pylint: disable=too-many-arguments
 
 
 def _decrease_population_roughly(  # pylint: disable=too-many-arguments
-    conn: Connection, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
+    conn: Connection,territory_id:int, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
 ) -> None:
     """Remove people of the given age and sex from houses without taking houses probabilities into account (used in
     the last step after the number of tries is exceeded)."""
@@ -190,6 +196,7 @@ def _decrease_population_roughly(  # pylint: disable=too-many-arguments
         .where(
             t_population_divided.c.year == year,
             t_population_divided.c.age == age,
+            t_population_divided.c.territory_id == territory_id,
             t_social_groups_probabilities.c.is_primary == true(),
         )
     )
@@ -216,6 +223,7 @@ def _decrease_population_roughly(  # pylint: disable=too-many-arguments
 
 def balance_year_age(  # pylint: disable=too-many-arguments
     conn: Connection,
+    territory_id,
     age: int,
     men_needed: int,
     women_needed: int,
@@ -248,6 +256,7 @@ def balance_year_age(  # pylint: disable=too-many-arguments
             .where(
                 t_population_divided.c.year == year,
                 t_population_divided.c.age == age,
+                t_population_divided.c.territory_id == territory_id,
                 (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
                 t_social_groups_probabilities.c.is_primary == true(),
             )
@@ -258,14 +267,14 @@ def balance_year_age(  # pylint: disable=too-many-arguments
 
         logger.trace("Age {}: men {} -> {}, women {} -> {}", age, men_in_db, men_needed, women_in_db, women_needed)
         if men_in_db < men_needed:
-            _increase_population(conn, age, men_needed - men_in_db, True, year, rng)
+            _increase_population(conn, territory_id, age, men_needed - men_in_db, True, year, rng)
         elif men_in_db > men_needed:
-            _decrease_population(conn, age, men_in_db - men_needed, True, year, rng)
+            _decrease_population(conn, territory_id, age, men_in_db - men_needed, True, year, rng)
 
         if women_in_db < women_needed:
-            _increase_population(conn, age, women_needed - women_in_db, False, year, rng)
+            _increase_population(conn, territory_id, age, women_needed - women_in_db, False, year, rng)
         elif women_in_db > women_needed:
-            _decrease_population(conn, age, women_in_db - women_needed, False, year, rng)
+            _decrease_population(conn, territory_id, age, women_in_db - women_needed, False, year, rng)
 
     logger.warning(
         "Could not balance people of age {} (men {} -> {}, women {} -> {}) by {} tries - using rough method",
@@ -278,7 +287,7 @@ def balance_year_age(  # pylint: disable=too-many-arguments
     )
 
     if men_in_db > men_needed:
-        _decrease_population_roughly(conn, age, men_in_db - men_needed, True, year, rng)
+        _decrease_population_roughly(conn, territory_id, age, men_in_db - men_needed, True, year, rng)
 
     if women_in_db > women_needed:
-        _decrease_population_roughly(conn, age, women_in_db - women_needed, False, year, rng)
+        _decrease_population_roughly(conn, territory_id, age, women_in_db - women_needed, False, year, rng)

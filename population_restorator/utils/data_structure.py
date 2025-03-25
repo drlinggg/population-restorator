@@ -100,6 +100,5 @@ def city_as_territory(
     for i in range(len(internal_territories_df)):
         territory = city.find_inner_territory_by_id(internal_territories_df.iloc[i]['territory_id'])
         territory.houses = internal_houses_df.query(f'territory_id == {territory.territory_id}')
-        print(territory.houses)
 
     return city

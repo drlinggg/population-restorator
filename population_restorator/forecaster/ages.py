@@ -67,7 +67,6 @@ def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
                 t_social_groups_probabilities.c.is_primary == true(),
                 t_population_divided.c.territory_id == territory_id,
                 (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
-                #territory_id = territory_id
             )
             .group_by(t_population_divided.c.age)
         )
