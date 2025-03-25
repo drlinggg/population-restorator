@@ -90,8 +90,10 @@ def _log_year_results(conn: Connection, year: int) -> None:
     )
 
 
+#tobefixedterritory_id
 def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
     start_engine: Engine,
+    territory_id: int,
     forecasted_ages: ForecastedAges,
     years_dsns: Iterable[str],
     base_year: int,
@@ -145,6 +147,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
                 t_population_divided.c.year == year - 1,
                 t_population_divided.c.age != max_age,
                 (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
+                #territory_id = territory_id
             )
             copied = False
             for house_id, age, social_group_id, men, women in prev_conn.execute(statement):
@@ -155,6 +158,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
                         age=age + 1,
                         house_id=house_id,
                         social_group_id=social_group_id,
+                        #territory_id = territory_id
                         men=men,
                         women=women,
                     )

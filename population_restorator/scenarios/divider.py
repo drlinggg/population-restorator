@@ -6,11 +6,13 @@ import sys
 
 import pandas as pd
 from loguru import logger
+from sqlalchemy import create_engine
 
-from population_restorator.divider.divide import divide_houses
+from population_restorator.divider import divide_houses, save_houses_distribution_to_db
 from population_restorator.models.parse.social_groups import SocialGroupsDistribution
 
 def divide(  # pylint: disable=too-many-arguments,too-many-locals
+    territory_id: int,
     houses_df: pd.DataFrame,
     distribution: SocialGroupsDistribution,
     year: int | None,
@@ -24,7 +26,7 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
     'is_additional' with default value of False.
 
     'total' attribute can be absolute (number of people) or relative (number of people of social group divided by
-    total).  
+    total).
     'ages' list can the same way contain absolute or relative numbers, but absolute must sum up to 'total' if it is also
     set in absolute form.
     """
@@ -38,11 +40,21 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
         logger.opt(colors=True).info("Using <cyan>{}</cyan> as a year to save a forecast", year)
 
     logger.info("Dividing houses ({}) population", len(houses_df))
-    #print(houses_df["population"]) Error tuple no slices
-    #TypeError: tuple indices must be integers or slices, not str
     distribution_series = pd.Series(
-        divide_houses(houses_df["population"].astype(int).to_list(), distribution), index=houses_df.index
+        divide_houses(houses_df["population"].astype(int).to_list(), distribution), index=houses_df.house_id
     )
 
+    output = "./population-restorator/test.db"
+    logger.info("Saving results to {}", output)
+    engine = create_engine(f"sqlite:///{output}")
+    save_houses_distribution_to_db(
+        engine.connect(),
+        territory_id,
+        distribution_series,
+        houses_df["living_area"] if "living_area" in houses_df.columns else houses_df["population"],
+        distribution,
+        year,
+        verbose,
+    )
 
     return (houses_df, distribution_series)

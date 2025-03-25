@@ -71,11 +71,14 @@ def prepare_db(conn: Connection, prev_conn: Connection | None = None) -> None:
                 t_population_divided.c.house_id,
                 t_population_divided.c.age,
                 t_population_divided.c.social_group_id,
+                t_population_divided.c.territory_id,
                 unique=True,
             ),
             if_not_exists=True,
         ),
     )
+
+
 
     if prev_conn is not None:
         social_groups_present = set(conn.execute(select(distinct(t_social_groups_probabilities.c.id))).scalars())

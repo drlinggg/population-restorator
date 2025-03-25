@@ -1,4 +1,5 @@
 """People division methods are defined here."""
+
 from __future__ import annotations
 
 import itertools
@@ -21,6 +22,7 @@ from population_restorator.models.social_groups import SocialGroupsDistribution
 
 def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
     conn: Connection,
+    territory_id: int,
     distribution: pd.Series,
     houses_capacity: pd.Series,
     distribution_probabilities: SocialGroupsDistribution,
@@ -31,6 +33,7 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
 
     Args:
         conn (sqlalchemy.Connection): connection to the database to save results to.
+        territory_id (int): The territory ID to associate with these records.
         distribution (pandas.Series): people distribution as pandas Series with numpy.ndarray as values
         houses_capacity (pandas.Series): capacity value for each house
         distribution_probabilities (SocialGroupsDistribution): probability distribution by social_groups-sex-age
@@ -88,31 +91,34 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
         )
         deleted_buildings = conn.execute(
             delete(t_population_divided).where(
-                t_population_divided.c.year == year, t_population_divided.c.house_id.in_(distribution.index.to_list())
+                t_population_divided.c.year == year,
+                t_population_divided.c.house_id.in_(distribution.index.to_list()),
+                t_population_divided.c.territory_id == territory_id  # Удаляем только записи для текущей территории
             )
         ).rowcount
 
         if deleted_buildings > 0:
-            logger.debug("Deleted {} buildings already present", deleted_buildings)
+            logger.debug(f"Deleted {deleted_buildings} buildings already present for territory {territory_id}")
+
         for house_id, distribution_array in iterable:
             statement = insert(t_population_divided).values(
                 year=year,
                 house_id=house_id,
+                territory_id=territory_id,  # Добавляем territory_id
             )
             statement_values: list[dict] = []
-
             for social_group_name, people_division in func(distribution_array).items():
                 social_group_id = social_groups_ids.get(social_group_name)
                 if social_group_id is None:
                     raise ValueError(
                         f"Could not insert people division because social group '{social_group_name}' is not present"
                     )
-
                 statement_values.extend(
                     [
                         {
                             "social_group_id": social_group_id,
                             "age": age,
+                            "territory_id": territory_id,
                             "men": men,
                             "women": women,
                         }
@@ -120,15 +126,7 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
                         if men > 0 or women > 0
                     ]
                 )
-
-            # statements_execute += 1
-            # statements_rows += len(statement_values)
             if len(statement_values) > 0:
                 conn.execute(statement, statement_values)
 
-        # print(f"Total number of statements - {statements_execute}, rows to be inserted - {statements_rows}")
-        # from sqlalchemy.dialects import postgresql
-
-        # print(f"execute_example:\n{statement.compile(dialect=postgresql.dialect())}")
-        # raise NotImplementedError()
         conn.commit()

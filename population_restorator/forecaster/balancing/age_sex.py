@@ -74,7 +74,9 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
     total_probs /= total_probs.sum()
 
     change_values = np.unique(
-        rng.choice(list(range(len(houses_ids) * len(sgs_ids))), increase_needed, replace=True, p=total_probs),
+        rng.choice(list(range(len(houses_ids) * len(sgs_ids))), increase_needed, replace=True, p=total_probs), 
+        #File "numpy/random/_generator.pyx", line 803, in numpy.random._generator.Generator.choice
+        #ValueError: a cannot be empty unless no samples are taken
         return_counts=True,
     )
     for idx, change in zip(change_values[0], change_values[1]):

@@ -55,7 +55,7 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
             [
                 {
 	                "name": territory.name,
-	                "population": territory.population,  # tobeunderstood why it doubles below
+	                "population": territory.population,
 	                "inner_territories_population": territory.get_total_territories_population(),
 	                "houses_number": territory.get_all_houses().shape[0],
 	                "houses_population": territory.get_total_houses_population(),
@@ -67,7 +67,7 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
             # self city representating
             [
 	            {
-	                "name": "City",
+	                "name": city.name,
 	                "population": city.population,
 	                "inner_territories_population": city.get_total_territories_population(),
 	                "houses_number": city.get_all_houses().shape[0],
@@ -76,6 +76,5 @@ def balance(  # pylint: disable=too-many-arguments,too-many-locals
 	            }
 	        ]
 	    )
-	)
-
+    )
     return (territories_new_df, city.get_all_houses())

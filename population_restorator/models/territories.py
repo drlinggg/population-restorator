@@ -22,7 +22,7 @@ class Territory:
     parent_id: int | None = None
     name: str | None = None
     inner_territories: list["Territory"] = field(default_factory=list)
-    houses: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=['territory_id', 'living_area', 'geometry']))
+    houses: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=['house_id', 'territory_id', 'living_area', 'geometry']))
 
     def get_total_living_area(self) -> float:
         """Get total living area of all houses of the territory (its inner territories)."""

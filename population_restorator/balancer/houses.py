@@ -86,9 +86,9 @@ def balance_houses(territory: Territory, rng: np.random.Generator | None = None)
 
 
     change_values = np.unique(
-        rng.choice(list(range(territory.houses.shape[0])), 
-            int(abs(compensation)), 
-            replace=True, 
+        rng.choice(list(range(territory.houses.shape[0])),
+            int(abs(compensation)),
+            replace=True,
             p=distribution),
         return_counts=True,
     )
@@ -96,4 +96,4 @@ def balance_houses(territory: Territory, rng: np.random.Generator | None = None)
     houses_population = list(territory.houses["population"])
     for idx, change in zip(change_values[0], change_values[1]):
         houses_population[idx] += int(change * sign)
-    territory.houses.loc[:,"population"] = houses_population
+    territory.houses.loc[:, "population"] = houses_population
