@@ -75,11 +75,8 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
     total_probs = np.array((np.mat(houses_probs).T * sgs_probs).flat)
     total_probs /= total_probs.sum()
 
-    # len(houses_ids) == 0
     change_values = np.unique(
         rng.choice(list(range(len(houses_ids) * len(sgs_ids))), increase_needed, replace=True, p=total_probs),
-        #File "numpy/random/_generator.pyx", line 803, in numpy.random._generator.Generator.choice
-        #ValueError: a cannot be empty unless no samples are taken
         return_counts=True,
     )
     for idx, change in zip(change_values[0], change_values[1]):
@@ -99,6 +96,7 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
                 t_population_divided.c.year == year,
                 t_population_divided.c.house_id == house_id,
                 t_population_divided.c.social_group_id == sg_id,
+                t_population_divided.c.territory_id == territory_id,
                 t_population_divided.c.age == age,
             )
         ).rowcount
@@ -179,7 +177,7 @@ def _decrease_population(  # pylint: disable=too-many-arguments
 
 
 def _decrease_population_roughly(  # pylint: disable=too-many-arguments
-    conn: Connection,territory_id:int, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
+    conn: Connection, territory_id: int, age: int, decrease_needed: int, is_male: bool, year: int, rng: np.random.Generator
 ) -> None:
     """Remove people of the given age and sex from houses without taking houses probabilities into account (used in
     the last step after the number of tries is exceeded)."""
@@ -265,6 +263,7 @@ def balance_year_age(  # pylint: disable=too-many-arguments
         if men_in_db == men_needed and women_in_db == women_needed:
             return
 
+        #save after in postgresql TODo
         logger.trace("Age {}: men {} -> {}, women {} -> {}", age, men_in_db, men_needed, women_in_db, women_needed)
         if men_in_db < men_needed:
             _increase_population(conn, territory_id, age, men_needed - men_in_db, True, year, rng)

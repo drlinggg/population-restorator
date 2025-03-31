@@ -62,7 +62,7 @@ def _fix_people_number(  # pylint: disable=too-many-locals,too-many-arguments
         sgs_probs.append(probability)
 
     if len(sgs_ids) == 0:
-        if probable == 0:
+        if probable == 0: #test here, 70 years warning
             logger.warning(
                 "Could not resettle {} {} of the age {} from house_id = {} which have social_group_id = {}"
                 " and should have been discarded",

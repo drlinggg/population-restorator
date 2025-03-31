@@ -17,3 +17,5 @@ requirements.txt
 *.ipynb
 *.sqlite
 *.zip
+*.db
+*.sqlite3

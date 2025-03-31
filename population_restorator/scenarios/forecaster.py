@@ -72,7 +72,7 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
             f" [b]'{output_dir}'[/b], aborting[/red]"
         )
         sys.exit(1)
-  
+
     databases = (f"sqlite:///{db_name}" for db_name in db_names)
 
     forecast_people(database,

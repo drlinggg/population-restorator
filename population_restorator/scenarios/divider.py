@@ -48,12 +48,10 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
     logger.info("Saving results to {}", output)
     engine = create_engine(f"sqlite:///{output}")
 
-    #houses_df.set_index("house_id", drop=False, inplace=True)
     save_houses_distribution_to_db(
         engine.connect(),
         territory_id,
         distribution_series,
-        #houses_df["living_area"] if "living_area" in houses_df.columns else houses_df["population"], #wtf why livingarea
         houses_df,
         distribution,
         year,
