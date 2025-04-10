@@ -17,6 +17,7 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
     distribution: SocialGroupsDistribution,
     year: int | None,
     verbose: bool,
+    working_db_path: str = ""
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Divide dwellings people by sex, age and social group
 
@@ -44,9 +45,8 @@ def divide(  # pylint: disable=too-many-arguments,too-many-locals
         divide_houses(houses_df["population"].astype(int).to_list(), distribution), index=houses_df.house_id
     )
 
-    output = "./population-restorator/test.db"
-    logger.info("Saving results to {}", output)
-    engine = create_engine(f"sqlite:///{output}")
+    logger.info("Saving results to {}", working_db_path)
+    engine = create_engine(f"sqlite:///{working_db_path}")
 
     save_houses_distribution_to_db(
         engine.connect(),

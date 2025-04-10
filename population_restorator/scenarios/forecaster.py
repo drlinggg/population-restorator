@@ -24,6 +24,7 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
     fertility_begin: int,
     fertility_end: int,
     verbose: bool,
+    working_dir: str = "",
 ) -> None: # not none
     """Forecast population change considering division.
 
@@ -63,13 +64,11 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
             )
         )
 
-    output_dir = "/home/banakh/shitstorage/"
-
-    db_names = [str(output_dir + f"year_{year}.sqlite") for year in range(year_begin + 1, year_begin + years + 1)]
+    db_names = [str(working_dir + f"year_{year}.sqlite") for year in range(year_begin + 1, year_begin + years + 1)]
     if any(Path(db_name).exists() for db_name in db_names):
         console.print(
             "[red]Error: forecasted SQLite tables already exist in the diven directory"
-            f" [b]'{output_dir}'[/b], aborting[/red]"
+            f" [b]'{working_dir}'[/b], aborting[/red]"
         )
         sys.exit(1)
 
