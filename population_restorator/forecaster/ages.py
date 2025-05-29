@@ -26,7 +26,7 @@ class ForecastedAges:
 
 def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
     database: Engine,
-    territory_id, # to be used in select
+    territory_id,
     year_begin: int,
     year_end: int,
     boys_to_girls: float,
@@ -42,7 +42,7 @@ def forecast_ages(  # pylint: disable=too-many-arguments,too-many-locals
 
     logger.debug("Obtaining number of people from the database")
     with database.connect() as conn:
-        max_age: int = conn.execute(select(func.max(t_population_divided.c.age))).scalar_one() #where territory = territory_id
+        max_age: int = conn.execute(select(func.max(t_population_divided.c.age)).where(t_population_divided.c.territory_id == territory_id)).scalar_one()
 
         if max_age != len(survivability_coefficients.men):
             logger.warning(

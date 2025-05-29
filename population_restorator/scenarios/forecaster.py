@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 
 import pandas as pd
+from typing import Literal
 from loguru import logger
 from rich.console import Console
 from sqlalchemy import create_engine
@@ -23,9 +24,10 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
     fertility_coefficient: float,
     fertility_begin: int,
     fertility_end: int,
+    scenario: Literal["NEGATIVE", "NEUTRAL", "POSITIVE"],
     verbose: bool,
     working_dir: str = "",
-) -> None: # not none
+) -> None:
     """Forecast population change considering division.
 
     Model population change for the given number of years based on a given statistical parameters.
@@ -64,7 +66,10 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
             )
         )
 
-    db_names = [str(working_dir + f"year_{year}.sqlite") for year in range(year_begin + 1, year_begin + years + 1)]
+    db_names = [
+            str(working_dir + f"year_{year}_terr_{territory_id}_scen_{scenario}.sqlite") 
+            for year in range(year_begin + 1, year_begin + years + 1)
+    ]
     if any(Path(db_name).exists() for db_name in db_names):
         console.print(
             "[red]Error: forecasted SQLite tables already exist in the diven directory"
@@ -78,5 +83,6 @@ def forecast(  # pylint: disable=too-many-arguments,too-many-locals
         territory_id=territory_id,
         forecasted_ages=forecasted_ages,
         years_dsns=databases,
+        scenario=scenario,
         base_year=year_begin
     )

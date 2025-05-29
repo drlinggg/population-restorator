@@ -102,14 +102,14 @@ class Territory:
         """
         return {
             "name": self.name,
-            "population": self.population,
+            "population": self.get_total_territories_population(),
             "inner_territories": (
                 [it.deep_info() for it in self.inner_territories] if self.inner_territories is not None else None
             ),
             "houses": (
                 {
-                    "count": self.houses.shape[0],
-                    "living_area": self.houses["living_area"].sum(),
+                    "count": self.get_all_houses().shape[0],
+                    "living_area": self.get_total_living_area(),
                 }
                 if self.houses is not None
                 else None

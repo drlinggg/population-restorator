@@ -23,7 +23,7 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
 ) -> None:
     """Add people of the given age and sex to the houses."""
     _load = (
-        func.coalesce(func.sum(t_population_divided.c.men if is_male else t_population_divided.c.women), text("0")) # add here territory
+        func.coalesce(func.sum(t_population_divided.c.men if is_male else t_population_divided.c.women), text("0"))
         / t_houses_tmp.c.capacity
     ).label("load")
     statement = (
@@ -41,7 +41,6 @@ def _increase_population(  # pylint: disable=too-many-arguments,too-many-locals
         .group_by(t_houses_tmp.c.id, t_houses_tmp.c.capacity)
         .having(_load > 0)
     )
-    #id house_tmps arent same with people_divided
     # pylint: disable=unnecessary-direct-lambda-call
     houses_ids, houses_probs = (lambda loads: (list(loads.keys()), np.array(list(loads.values()))))(
         dict(conn.execute(statement).all())
@@ -143,7 +142,7 @@ def _decrease_population(  # pylint: disable=too-many-arguments
         houses_sgs_probs.append(float(load))
 
     houses_sgs_probs = np.array(houses_sgs_probs)
-    houses_sgs_probs /= houses_sgs_probs.sum() 
+    houses_sgs_probs /= houses_sgs_probs.sum()
 
     change_values = np.unique(
         rng.choice(list(range(len(houses_sgs_ids))), decrease_needed, replace=True, p=houses_sgs_probs),
@@ -263,7 +262,6 @@ def balance_year_age(  # pylint: disable=too-many-arguments
         if men_in_db == men_needed and women_in_db == women_needed:
             return
 
-        #save after in postgresql TODo
         logger.trace("Age {}: men {} -> {}, women {} -> {}", age, men_in_db, men_needed, women_in_db, women_needed)
         if men_in_db < men_needed:
             _increase_population(conn, territory_id, age, men_needed - men_in_db, True, year, rng)

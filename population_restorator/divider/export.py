@@ -97,7 +97,7 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
             delete(t_population_divided).where(
                 t_population_divided.c.year == year,
                 t_population_divided.c.house_id.in_(distribution.index.to_list()),
-                t_population_divided.c.territory_id == territory_id  # Удаляем только записи для текущей территории
+                t_population_divided.c.territory_id == territory_id
             )
         ).rowcount
 
@@ -108,7 +108,7 @@ def save_houses_distribution_to_db(  # pylint: disable=too-many-locals,too-many-
             statement = insert(t_population_divided).values(
                 year=year,
                 house_id=house_id,
-                territory_id=territory_id,  # Добавляем territory_id
+                territory_id=territory_id,
             )
             statement_values: list[dict] = []
             for social_group_name, people_division in func(distribution_array).items():

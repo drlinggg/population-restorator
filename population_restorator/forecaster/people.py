@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import time
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Literal
 
 import numpy as np
 from loguru import logger
@@ -95,16 +95,16 @@ def _log_year_results(conn: Connection, territory_id: int, year: int) -> None:
     )
 
 
-#tobefixedterritory_id
 def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
     start_engine: Engine,
     territory_id: int,
+    scenario: Literal["NEGATIVE", "NEUTRAL", "POSITIVE"],
     forecasted_ages: ForecastedAges,
     years_dsns: Iterable[str],
     base_year: int,
     houses_ids: list[int] | None = None,
     rng: np.random.Generator | None = None,
-    callback: Callable[[int, Engine]] | None = None,
+    callback: Callable[[int, int, str, Engine]] | None = None,
     threads: int = 1,
 ) -> None:
     """Forecast people based on a people division on the start_year, saving each year in its own database connection
@@ -202,7 +202,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
             _log_year_results(year_conn, territory_id, year)
 
         if callback is not None:
-            callback(year_dsn, year)
+            callback(year, territory_id, scenario, year_engine)
 
         year_engine.dispose()
 

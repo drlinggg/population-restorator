@@ -7,7 +7,7 @@ t_population_divided = Table(
     metadata,
     Column("year", Integer, primary_key=True, nullable=False),
     Column("house_id", Integer, ForeignKey("houses_tmp.id"), primary_key=True, nullable=False),
-    Column("territory_id", Integer, nullable=False),
+    Column("territory_id", Integer, primary_key=True, nullable=False),
     Column("age", Integer, primary_key=True, nullable=False),
     Column("social_group_id", Integer, ForeignKey("social_groups_probabilities.id"), primary_key=True, nullable=False),
     Column("men", Integer, nullable=False),
