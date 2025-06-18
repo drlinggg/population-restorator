@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, Integer, ForeignKey
+from sqlalchemy import Table, Column, Integer, ForeignKey, CheckConstraint
 
 from population_restorator.db import metadata
 
@@ -12,6 +12,7 @@ t_population_divided = Table(
     Column("social_group_id", Integer, ForeignKey("social_groups_probabilities.id"), primary_key=True, nullable=False),
     Column("men", Integer, nullable=False),
     Column("women", Integer, nullable=False),
+    CheckConstraint("age BETWEEN 0 AND 100", name="ck_population_age_range"),
 )
 """Final population division.
 Columns:

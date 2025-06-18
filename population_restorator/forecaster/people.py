@@ -154,6 +154,7 @@ def forecast_people(  # pylint: disable=too-many-locals,too-many-arguments
             ).where(
                 t_population_divided.c.year == year - 1,
                 t_population_divided.c.age != max_age,
+                t_population_divided.c.age != 100,
                 t_population_divided.c.territory_id == territory_id,
                 (t_population_divided.c.house_id.in_(houses_ids) if houses_ids is not None else true()),
             )
